@@ -169,6 +169,8 @@ class VarExpr(Generic[OpsT], ABC):
         """
         ...
 
+    def __eq__(self, other: "VarExpr")->bool:
+        return str(self)==str(other)
 
 # =====================================================================
 # Unary / Binary bases

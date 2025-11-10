@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 from dsl.core import dsl
-VarName=str
+from dsl.variable import kconfig
 
 
 Element = dsl.Node
@@ -49,7 +49,7 @@ class TypedOption(dsl.Block, ABC):
 
     def __init__(
         self,
-        name: VarName,
+        name: kconfig.KVar,
         type_keyword: str,
         prompt: Optional[str] = None,
         menuconfig: bool = False,
@@ -78,26 +78,26 @@ class TypedOption(dsl.Block, ABC):
     @abstractmethod
     def _format_default_value(self, default: Union[str, int, bool]) -> str:
         """
-        Subclasses implement formatting for non-VarName values.
+        Subclasses implement formatting for non-kconfig.KVar values.
         """
 
     def format_default(
         self,
-        default: Union[str, int, bool, VarName],
+        default: Union[str, int, bool, kconfig.KVar],
     ) -> str:
         """
         Shared handling:
-          - VarName is always treated as a symbol reference (no quotes).
+          - kconfig.KVar is always treated as a symbol reference (no quotes).
           - Other types are delegated to _format_default_value.
         """
-        if isinstance(default, VarName):
+        if isinstance(default, kconfig.KVar):
             return str(default)
         return self._format_default_value(default)
 
     def add_default(
         self,
-        value: Union[str, int, bool, VarName],
-        when: Optional[VarName] = None,
+        value: Union[str, int, bool, kconfig.KVar],
+        when: Optional[kconfig.KVar] = None,
     ) -> "TypedOption":
         v = self.format_default(value)
         if when is None:
@@ -106,7 +106,7 @@ class TypedOption(dsl.Block, ABC):
             self.append(dsl.Text(f"default {v} if {when}"))
         return self
 
-    def add_depends(self, *conds: VarName) -> "TypedOption":
+    def add_depends(self, *conds: kconfig.KVar) -> "TypedOption":
         for cond in conds:
             self.append(dsl.Text(f"depends on {cond}"))
         return self
@@ -115,7 +115,7 @@ class TypedOption(dsl.Block, ABC):
 class Bool(TypedOption):
     def __init__(
         self,
-        name: VarName,
+        name: kconfig.KVar,
         prompt: Optional[str] = None,
         menuconfig: bool = False,
     ):
@@ -134,7 +134,7 @@ class Bool(TypedOption):
 class String(TypedOption):
     def __init__(
         self,
-        name: VarName,
+        name: kconfig.KVar,
         prompt: Optional[str] = None,
         menuconfig: bool = False,
     ):
@@ -149,7 +149,7 @@ class String(TypedOption):
 class Int(TypedOption):
     def __init__(
         self,
-        name: VarName,
+        name: kconfig.KVar,
         prompt: Optional[str] = None,
         menuconfig: bool = False,
     ):
@@ -166,7 +166,7 @@ class Int(TypedOption):
 class Hex(TypedOption):
     def __init__(
         self,
-        name: VarName,
+        name: kconfig.KVar,
         prompt: Optional[str] = None,
         menuconfig: bool = False,
     ):
@@ -195,7 +195,7 @@ class Menuconfig(Bool):
           ...
     """
 
-    def __init__(self, name: VarName, prompt: str):
+    def __init__(self, name: kconfig.KVar, prompt: str):
         super().__init__(name, prompt, menuconfig=True)
 
 
@@ -210,14 +210,16 @@ class BlockElement(dsl.Block):
       end<keyword>
     """
 
-    def __init__(self, statement: str, *children: Element):
-        if statement:
-            keyword = statement.split()[0].lower()
-            begin = dsl.Text(statement)
-            end = dsl.Text(f"end{keyword}")
-        else:
-            begin = None
-            end = None
+    def __init__(self, begin: dsl.Node, *children: Element):
+        if not begin:
+            raise ValueError("Expecting begin statement")
+        
+        words=str(begin).split()
+        if not words:
+            raise ValueError("Empty begin is not allowed")
+        
+        keyword = words[0].lower()
+        end = dsl.Text(f"end{keyword}")
 
         super().__init__(
             begin=begin,
@@ -236,8 +238,8 @@ class If(BlockElement):
     endif
     """
 
-    def __init__(self, condition: VarName, *blocks: Element):
-        super().__init__(f"if {condition}", *blocks)
+    def __init__(self, condition: kconfig.KVar, *blocks: Element):
+        super().__init__(dsl.Text(f"if {condition}"), *blocks)
 
 
 class Menu(BlockElement):
@@ -248,13 +250,12 @@ class Menu(BlockElement):
     """
 
     def __init__(self, title: str, *blocks: Element):
-        statement = f'menu "{StringKey.escape(title)}"'
-        super().__init__(statement, *blocks)
+        super().__init__(StringKey("menu",title), *blocks)
 
 
 # ===== Choice: special header block =====
 
-class Choice(dsl.Block):
+class Choice(BlockElement):
     """
     choice
         prompt "..."
@@ -277,14 +278,14 @@ class Choice(dsl.Block):
         #       prompt "..."
         #       <type_keyword>
         header = dsl.Block(
-            begin=dsl.Text("choice"),
-            end=None,
-            margin=None,
-            inner=False,
-            outer=False,
+                begin=dsl.Text("choice"),
+                end=None,
+                margin=None,
+                inner=False,
+                outer=False,
+            ).append(StringKey("prompt", prompt)
+            ).append(dsl.Text(type_keyword)
         )
-        header.append(StringKey("prompt", prompt))
-        header.append(dsl.Text(type_keyword))
 
         # Main Choice block:
         # begin = header (already rendered as choice + its properties)
@@ -292,12 +293,8 @@ class Choice(dsl.Block):
         # end = endchoice
         super().__init__(
             begin=header,
-            end=dsl.Text("endchoice"),
-            margin=None,
-            inner=False,
-            outer=False,
+            *choices
         )
-        self.extend(choices)
 
 
 # ===== Simple one-line elements =====
