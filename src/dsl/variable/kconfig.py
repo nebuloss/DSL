@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable
 
 from dsl.core.var import (
     LanguageOps,
@@ -81,32 +81,26 @@ KconfigOps.Or = KOr
 
 # ---------- Convenience helpers ----------
 
-def const(val: bool) -> KConst:
+def const(val: Any) -> KConst:
     return KConst(val)
-
 
 def var(name: str) -> KVar:
     return KVar(name)
 
+def true() -> KConst:
+    return KConst.true()
 
-def all_of(vars_: Iterable[KVar]) -> VarExpr[KconfigOps]:
-    it = iter(vars_)
-    try:
-        expr: VarExpr[KconfigOps] = next(it)
-    except StopIteration:
-        return KConst(True)
-    for v in it:
-        expr = expr & v
-    return expr
+def false() -> KConst:
+    return KConst.false()
 
+def all(*vars:KVar) -> VarExpr[KconfigOps]:
+    result=KConst.true()
+    for var in vars:
+        result&=var
+    return result
 
-def any_of(vars_: Iterable[KVar]) -> VarExpr[KconfigOps]:
-    it = iter(vars_)
-    try:
-        expr: VarExpr[KconfigOps] = next(it)
-    except StopIteration:
-        return KConst(False)
-    for v in it:
-        expr = expr | v
-    return expr
-
+def any(*vars:KVar) -> VarExpr[KconfigOps]:
+    result=KConst.false()
+    for var in vars:
+        result|=var
+    return result

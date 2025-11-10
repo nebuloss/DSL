@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import re
 from typing import (
     Any,
     ClassVar,
@@ -240,12 +241,14 @@ class VarBinaryOp(VarExpr[OpsT], ABC):
 
 class VarConst(VarExpr[OpsT], ABC):
     """
-    Boolean constant.
+    Constant node.
+    Now accepts any Python value. Boolean logic in the simplifiers still
+    triggers only when val is exactly True or exactly False.
     Concrete languages define __str__.
     """
 
-    def __init__(self, val: bool):
-        self.val = bool(val)
+    def __init__(self, val: Any):
+        self.val = val
         super().__init__()
 
     def key(self) -> Tuple[Any, ...]:
@@ -257,14 +260,21 @@ class VarConst(VarExpr[OpsT], ABC):
     def __len__(self) -> int:
         return 0
 
-    @staticmethod
-    def is_true(x: "VarExpr[OpsT]") -> bool:
-        return isinstance(x, VarConst) and x.val is True
+    @classmethod
+    def isTrue(cls,x: "VarExpr[OpsT]") -> bool:
+        return isinstance(x, cls) and x.val is True
 
-    @staticmethod
-    def is_false(x: "VarExpr[OpsT]") -> bool:
-        return isinstance(x, VarConst) and x.val is False
+    @classmethod
+    def isFalse(cls,x: "VarExpr[OpsT]") -> bool:
+        return isinstance(x, cls) and x.val is False
 
+    @classmethod
+    def true(cls) -> "VarConst[OpsT]":
+        return cls(True)  # type: ignore[call-arg]
+
+    @classmethod
+    def false(cls) -> "VarConst[OpsT]":
+        return cls(False)  # type: ignore[call-arg]
 
 class VarName(VarExpr[OpsT], ABC):
     """
@@ -279,13 +289,20 @@ class VarName(VarExpr[OpsT], ABC):
 
     @staticmethod
     def normalize(name: str) -> str:
+        if not isinstance(name, str):
+            raise TypeError("Variable name must be a string")
+
         s = name.strip()
-        s = s.replace(" ", "_")
-        s = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in s)
         if not s:
             raise ValueError("Empty variable name")
-        if s[0].isdigit():
-            s = "_" + s
+
+        # Replace spaces, tabs, and hyphens with underscores
+        s = re.sub(r"[ \t-]+", "_", s)
+
+        # Validate: must start with a letter or underscore, and only contain alphanumerics or underscores
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
+            raise ValueError(f"Illegal variable name: {name!r}")
+
         return s
 
     @property
@@ -307,39 +324,33 @@ class VarName(VarExpr[OpsT], ABC):
 # =====================================================================
 
 class VarNot(VarUnaryOp[OpsT], ABC):
-    PREC = 3  # higher than AND / OR
+    PREC = 3
 
     def key(self) -> Tuple[Any, ...]:
         return ("not", self.child.key())
 
     def simplify(self) -> "VarExpr[OpsT]":
-        ops = self.ops
-        ConstCls: Type[VarConst[OpsT]] = ops.Const  # type: ignore[assignment]
-        NotCls: Type["VarNot[OpsT]"] = ops.Not  # type: ignore[assignment]
-        AndCls: Type["VarAnd[OpsT]"] = ops.And  # type: ignore[assignment]
-        OrCls: Type["VarOr[OpsT]"] = ops.Or  # type: ignore[assignment]
-
         c = self.child.simplify()
 
-        # !const
-        if isinstance(c, ConstCls):
-            return ConstCls(not c.val)
+        if self.ops.Const.isTrue(c):
+            return self.ops.Const.false()
+        if self.ops.Const.isFalse(c):
+            return self.ops.Const.true()
 
-        # !!x
-        if isinstance(c, NotCls):
+        if isinstance(c, self.ops.Not):
             return c.child
 
-        # De Morgan
-        if isinstance(c, AndCls):
-            return (NotCls(c.left) | NotCls(c.right)).simplify()
+        if isinstance(c, self.ops.And):
+            return (self.ops.Not(c.left) | self.ops.Not(c.right)).simplify()
 
-        if isinstance(c, OrCls):
-            return (NotCls(c.left) & NotCls(c.right)).simplify()
+        if isinstance(c, self.ops.Or):
+            return (self.ops.Not(c.left) & self.ops.Not(c.right)).simplify()
 
-        return NotCls(c)
+        return self.ops.Not(c)
 
     def __len__(self) -> int:
         return len(self.child)
+
 
 
 # =====================================================================
@@ -350,82 +361,53 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
     PREC = 2
 
     def key(self) -> Tuple[Any, ...]:
-        ops = self.ops
-        AndCls: Type["VarAnd[OpsT]"] = ops.And  # type: ignore[assignment]
-        ConstCls: Type["VarConst[OpsT]"] = ops.Const  # type: ignore[assignment]
-        flat = self._flatten_terms(self.left, self.right, AndCls, ConstCls)
+        flat = self._flatten_terms(self.left, self.right)
         keys = sorted(t.key() for t in flat)
         return ("and", tuple(keys))
 
     def simplify(self) -> "VarExpr[OpsT]":
-        ops = self.ops
-        ConstCls: Type["VarConst[OpsT]"] = ops.Const  # type: ignore[assignment]
-        NotCls: Type["VarNot[OpsT]"] = ops.Not  # type: ignore[assignment]
-        AndCls: Type["VarAnd[OpsT]"] = ops.And  # type: ignore[assignment]
-        OrCls: Type["VarOr[OpsT]"] = ops.Or  # type: ignore[assignment]
+        left = self.left.simplify()
+        right = self.right.simplify()
 
-        L = self.left.simplify()
-        R = self.right.simplify()
+        if self.ops.Const.isFalse(left) or self.ops.Const.isFalse(right):
+            return self.ops.Const.false()
+        if self.ops.Const.isTrue(left):
+            return right
+        if self.ops.Const.isTrue(right):
+            return left
 
-        # Short circuits
-        if isinstance(L, ConstCls):
-            if L.val is False:
-                return ConstCls(False)
-            if L.val is True:
-                return R
+        if left.key() == right.key():
+            return left
 
-        if isinstance(R, ConstCls):
-            if R.val is False:
-                return ConstCls(False)
-            if R.val is True:
-                return L
+        if VarBinaryOp.is_negation_pair(left, right):
+            return self.ops.Const.false()
 
-        # Idempotent
-        if L.key() == R.key():
-            return L
+        terms = self._flatten_terms(left, right)
 
-        # x && !x
-        if VarBinaryOp.is_negation_pair(L, R):
-            return ConstCls(False)
-
-        # Flatten nested ANDs, remove True, dedupe
-        terms = self._flatten_terms(L, R, AndCls, ConstCls)
-
-        # x && !x among terms
-        early = self._detect_contradiction(terms, ConstCls, NotCls)
+        early = self._detect_contradiction(terms)
         if early is not None:
             return early
 
-        # X && (X || Y) -> X
-        terms = self._absorption(terms, OrCls)
+        terms = self._absorption_with_or(terms)
+        terms = self._negated_absorption_with_or(terms)
 
-        # X && (!X || Y) etc
-        terms = self._negated_absorption(terms, OrCls, NotCls)
-
-        # Rebuild
         return VarBinaryOp.rebuild_sorted(
             terms,
-            ConstCls(True),
-            AndCls,
+            self.ops.Const.true(),
+            self.ops.And,
         )
 
     def __len__(self) -> int:
         return len(self.left) + len(self.right)
 
-    # ----- helpers -----
+    # helpers use self.ops directly
 
-    @staticmethod
-    def _flatten_terms(
-        a: VarExpr[OpsT],
-        b: VarExpr[OpsT],
-        AndCls: Type["VarAnd[OpsT]"],
-        ConstCls: Type["VarConst[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _flatten_terms(self, a: VarExpr[OpsT], b: VarExpr[OpsT]) -> List[VarExpr[OpsT]]:
         items: List[VarExpr[OpsT]] = []
         seen = set()
 
         def add(e: VarExpr[OpsT]) -> None:
-            if isinstance(e, ConstCls) and e.val is True:
+            if self.ops.Const.isTrue(e):
                 return
             k = e.key()
             if k not in seen:
@@ -433,7 +415,7 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
                 items.append(e)
 
         def walk(e: VarExpr[OpsT]) -> None:
-            if isinstance(e, AndCls):
+            if isinstance(e, self.ops.And):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -443,75 +425,49 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         walk(b)
         return items
 
-    @staticmethod
-    def _detect_contradiction(
-        terms: List[VarExpr[OpsT]],
-        ConstCls: Type["VarConst[OpsT]"],
-        NotCls: Type["VarNot[OpsT]"],
-    ) -> Optional[VarExpr[OpsT]]:
+    def _detect_contradiction(self, terms: List[VarExpr[OpsT]]) -> Optional[VarExpr[OpsT]]:
         keys = {t.key() for t in terms}
         for t in terms:
-            if isinstance(t, NotCls) and t.child.key() in keys:
-                return ConstCls(False)
-            if not isinstance(t, NotCls) and ("not", t.key()) in keys:
-                return ConstCls(False)
+            if isinstance(t, self.ops.Not) and t.child.key() in keys:
+                return self.ops.Const.false()
+            if not isinstance(t, self.ops.Not) and ("not", t.key()) in keys:
+                return self.ops.Const.false()
         return None
 
-    @staticmethod
-    def _absorption(
-        terms: List[VarExpr[OpsT]],
-        OrCls: Type["VarOr[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _absorption_with_or(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
         if not terms:
             return terms
         base = {t.key() for t in terms}
         kept: List[VarExpr[OpsT]] = []
         for t in terms:
-            if isinstance(t, OrCls) and (
-                t.left.key() in base or t.right.key() in base
-            ):
+            if isinstance(t, self.ops.Or) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
 
-    @staticmethod
-    def _negated_absorption(
-        terms: List[VarExpr[OpsT]],
-        OrCls: Type["VarOr[OpsT]"],
-        NotCls: Type["VarNot[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _negated_absorption_with_or(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
         if len(terms) <= 1:
             return terms
 
-        base_pos = {t.key() for t in terms if not isinstance(t, NotCls)}
-        base_neg = {t.child.key() for t in terms if isinstance(t, NotCls)}
+        base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
+        base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
 
         new_terms: List[VarExpr[OpsT]] = []
         changed = False
 
         for t in terms:
-            if isinstance(t, OrCls):
+            if isinstance(t, self.ops.Or):
                 l, r = t.left, t.right
 
-                # X && (!X || Y) -> X && Y
-                if isinstance(l, NotCls) and l.child.key() in base_pos:
-                    new_terms.append(r)
-                    changed = True
-                    continue
-                if isinstance(r, NotCls) and r.child.key() in base_pos:
-                    new_terms.append(l)
-                    changed = True
-                    continue
+                if isinstance(l, self.ops.Not) and l.child.key() in base_pos:
+                    new_terms.append(r); changed = True; continue
+                if isinstance(r, self.ops.Not) and r.child.key() in base_pos:
+                    new_terms.append(l); changed = True; continue
 
-                # (!X) && (X || Y) -> (!X) && Y
                 if l.key() in base_neg:
-                    new_terms.append(r)
-                    changed = True
-                    continue
+                    new_terms.append(r); changed = True; continue
                 if r.key() in base_neg:
-                    new_terms.append(l)
-                    changed = True
-                    continue
+                    new_terms.append(l); changed = True; continue
 
             new_terms.append(t)
 
@@ -526,82 +482,53 @@ class VarOr(VarBinaryOp[OpsT], ABC):
     PREC = 1
 
     def key(self) -> Tuple[Any, ...]:
-        ops = self.ops
-        OrCls: Type["VarOr[OpsT]"] = ops.Or  # type: ignore[assignment]
-        ConstCls: Type["VarConst[OpsT]"] = ops.Const  # type: ignore[assignment]
-        flat = self._flatten_terms(self.left, self.right, OrCls, ConstCls)
+        flat = self._flatten_terms(self.left, self.right)
         keys = sorted(t.key() for t in flat)
         return ("or", tuple(keys))
 
     def simplify(self) -> "VarExpr[OpsT]":
-        ops = self.ops
-        ConstCls: Type["VarConst[OpsT]"] = ops.Const  # type: ignore[assignment]
-        NotCls: Type["VarNot[OpsT]"] = ops.Not  # type: ignore[assignment]
-        AndCls: Type["VarAnd[OpsT]"] = ops.And  # type: ignore[assignment]
-        OrCls: Type["VarOr[OpsT]"] = ops.Or  # type: ignore[assignment]
+        left = self.left.simplify()
+        right = self.right.simplify()
 
-        L = self.left.simplify()
-        R = self.right.simplify()
+        if self.ops.Const.isTrue(left) or self.ops.Const.isTrue(right):
+            return self.ops.Const.true()
+        if self.ops.Const.isFalse(left):
+            return right
+        if self.ops.Const.isFalse(right):
+            return left
 
-        # Short circuits
-        if isinstance(L, ConstCls):
-            if L.val is True:
-                return ConstCls(True)
-            if L.val is False:
-                return R
+        if left.key() == right.key():
+            return left
 
-        if isinstance(R, ConstCls):
-            if R.val is True:
-                return ConstCls(True)
-            if R.val is False:
-                return L
+        if VarBinaryOp.is_negation_pair(left, right):
+            return self.ops.Const.true()
 
-        # Idempotent
-        if L.key() == R.key():
-            return L
+        terms = self._flatten_terms(left, right)
 
-        # x || !x
-        if VarBinaryOp.is_negation_pair(L, R):
-            return ConstCls(True)
-
-        # Flatten nested ORs
-        terms = self._flatten_terms(L, R, OrCls, ConstCls)
-
-        # x || !x among terms
-        early = self._detect_tautology(terms, ConstCls, NotCls)
+        early = self._detect_tautology(terms)
         if early is not None:
             return early
 
-        # X || (X && Y) -> X
-        terms = self._absorption(terms, AndCls)
+        terms = self._absorption_with_and(terms)
+        terms = self._negated_absorption_with_and(terms)
 
-        # X || (!X && Y) etc
-        terms = self._negated_absorption(terms, AndCls, NotCls)
-
-        # Rebuild
         return VarBinaryOp.rebuild_sorted(
             terms,
-            ConstCls(False),
-            OrCls,
+            self.ops.Const.false(),
+            self.ops.Or,
         )
 
     def __len__(self) -> int:
         return len(self.left) + len(self.right)
 
-    # ----- helpers -----
+    # helpers use self.ops directly
 
-    @staticmethod
-    def _flatten_terms(
-        a: VarExpr[OpsT],
-        b: VarExpr[OpsT],
-        OrCls: Type["VarOr[OpsT]"],
-        ConstCls: Type["VarConst[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _flatten_terms(self, a: VarExpr[OpsT], b: VarExpr[OpsT]) -> List[VarExpr[OpsT]]:
         items: List[VarExpr[OpsT]] = []
         seen = set()
 
         def add(e: VarExpr[OpsT]) -> None:
-            if isinstance(e, ConstCls) and e.val is False:
+            if self.ops.Const.isFalse(e):
                 return
             k = e.key()
             if k not in seen:
@@ -609,7 +536,7 @@ class VarOr(VarBinaryOp[OpsT], ABC):
                 items.append(e)
 
         def walk(e: VarExpr[OpsT]) -> None:
-            if isinstance(e, OrCls):
+            if isinstance(e, self.ops.Or):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -619,76 +546,51 @@ class VarOr(VarBinaryOp[OpsT], ABC):
         walk(b)
         return items
 
-    @staticmethod
-    def _detect_tautology(
-        terms: List[VarExpr[OpsT]],
-        ConstCls: Type["VarConst[OpsT]"],
-        NotCls: Type["VarNot[OpsT]"],
-    ) -> Optional[VarExpr[OpsT]]:
+    def _detect_tautology(self, terms: List[VarExpr[OpsT]]) -> Optional[VarExpr[OpsT]]:
         keys = {t.key() for t in terms}
         for t in terms:
-            if isinstance(t, NotCls) and t.child.key() in keys:
-                return ConstCls(True)
-            if not isinstance(t, NotCls) and ("not", t.key()) in keys:
-                return ConstCls(True)
+            if isinstance(t, self.ops.Not) and t.child.key() in keys:
+                return self.ops.Const.true()
+            if not isinstance(t, self.ops.Not) and ("not", t.key()) in keys:
+                return self.ops.Const.true()
         return None
 
-    @staticmethod
-    def _absorption(
-        terms: List[VarExpr[OpsT]],
-        AndCls: Type["VarAnd[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _absorption_with_and(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
         if not terms:
             return terms
         base = {t.key() for t in terms}
         kept: List[VarExpr[OpsT]] = []
         for t in terms:
-            if isinstance(t, AndCls) and (
-                t.left.key() in base or t.right.key() in base
-            ):
+            if isinstance(t, self.ops.And) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
 
-    @staticmethod
-    def _negated_absorption(
-        terms: List[VarExpr[OpsT]],
-        AndCls: Type["VarAnd[OpsT]"],
-        NotCls: Type["VarNot[OpsT]"],
-    ) -> List[VarExpr[OpsT]]:
+    def _negated_absorption_with_and(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
         if len(terms) <= 1:
             return terms
 
-        base_pos = {t.key() for t in terms if not isinstance(t, NotCls)}
-        base_neg = {t.child.key() for t in terms if isinstance(t, NotCls)}
+        base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
+        base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
 
         new_terms: List[VarExpr[OpsT]] = []
         changed = False
 
         for t in terms:
-            if isinstance(t, AndCls):
+            if isinstance(t, self.ops.And):
                 l, r = t.left, t.right
 
-                # X || (!X && Y) -> X || Y
-                if isinstance(l, NotCls) and l.child.key() in base_pos:
-                    new_terms.append(r)
-                    changed = True
-                    continue
-                if isinstance(r, NotCls) and r.child.key() in base_pos:
-                    new_terms.append(l)
-                    changed = True
-                    continue
+                if isinstance(l, self.ops.Not) and l.child.key() in base_pos:
+                    new_terms.append(r); changed = True; continue
+                if isinstance(r, self.ops.Not) and r.child.key() in base_pos:
+                    new_terms.append(l); changed = True; continue
 
-                # (!X) || (X && Y) -> (!X) || Y
                 if l.key() in base_neg:
-                    new_terms.append(r)
-                    changed = True
-                    continue
+                    new_terms.append(r); changed = True; continue
                 if r.key() in base_neg:
-                    new_terms.append(l)
-                    changed = True
-                    continue
+                    new_terms.append(l); changed = True; continue
 
             new_terms.append(t)
 
         return new_terms if changed else terms
+
