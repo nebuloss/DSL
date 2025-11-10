@@ -7,8 +7,15 @@ from typing import Generic, Iterable, List, Optional, Self, TypeVar, get_args
 
 # ========= Core node =========
 
+# ========= Core node =========
+
 class Node(ABC):
     TAB = "\t"
+
+    def __init__(self, width: Optional[int] = None, height: Optional[int] = None):
+        self._width: Optional[int] = None
+        self._height: Optional[int] = None
+        self.resize(width=width, height=height)
 
     @classmethod
     def _indent_line(cls, line: str, level: int) -> str:
@@ -24,18 +31,69 @@ class Node(ABC):
     def render(self) -> List[str]:
         raise NotImplementedError
 
-    @property
-    @abstractmethod
-    def width(self) -> int:
-        raise NotImplementedError
+    @staticmethod
+    def _fit_lines(lines: List[str], width: Optional[int], height: Optional[int]) -> List[str]:
+        if height is not None:
+            if len(lines) > height:
+                lines = lines[:height]
+            else:
+                lines = lines + [""] * (height - len(lines))
+
+        target = width if width is not None else max((len(l) for l in lines), default=0)
+
+        out: List[str] = []
+        for l in lines:
+            ln = len(l)
+            if width is not None and ln > target:
+                out.append(l[:target])
+            elif ln < target:
+                out.append(l + " " * (target - ln))
+            else:
+                out.append(l)
+        return out
 
     @property
-    @abstractmethod
+    def lines(self) -> List[str]:
+        return self._fit_lines(self.render(), self._width, self._height)
+
+    # New: compute width and height together with a single render
+    @property
+    def size(self) -> tuple[int, int]:
+        """Return (width, height) using explicit values if set, else compute the missing ones."""
+        w = self._width
+        h = self._height
+
+        if w is not None and h is not None:
+            return w, h
+
+        nat = self.render()  # single render
+        if w is None:
+            w = max((len(line) for line in nat), default=0)
+        if h is None:
+            h = len(nat)
+
+        return w, h
+
+
+    @property
+    def width(self) -> int:
+        w, _ = self.size
+        return w
+
+    @property
     def height(self) -> int:
-        raise NotImplementedError
+        _, h = self.size
+        return h
+
+    def resize(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
+        if width is not None:
+            self._width = max(0, int(width))
+        if height is not None:
+            self._height = max(0, int(height))
+        return self
 
     def __str__(self) -> str:
-        return "\n".join(self.render())
+        return "\n".join(self.lines)
 
 
 # ========= Leaf nodes =========
@@ -95,7 +153,7 @@ class HSpace(Node):
 T = TypeVar("T", bound="Node")
 
 
-class Container(Node, Generic[T], ABC):
+class Stack(Node, Generic[T], ABC):
     """
     Generic container with optional margin insertion:
 
@@ -150,6 +208,10 @@ class Container(Node, Generic[T], ABC):
         self._inner = bool(inner)
         self._outer = bool(outer)
         return self
+    
+    @property
+    def child_type(self)->type[Node]:
+        return self._child_type
 
     @property
     def children(self) -> tuple[T, ...]:
@@ -241,6 +303,12 @@ class Container(Node, Generic[T], ABC):
         new._children = list(self._children)
         new.append(other)
         return new
+    
+    def __getitem__(self,index:int) -> T:
+        return self._children[index]
+    
+    def __len__(self) -> int:
+        return len(self._children)
 
     @abstractmethod
     def render(self) -> List[str]:
@@ -258,7 +326,7 @@ class Container(Node, Generic[T], ABC):
 
 # ========= Vertical stack =========
 
-class VStack(Container[T]):
+class VStack(Stack[T]):
     def render(self) -> List[str]:
         out: List[str] = []
         for node in self:
@@ -332,28 +400,35 @@ class Box(VStack[T]):
 
 # ========= Horizontal stack =========
 
-class HStack(Container[T]):
+class HStack(Stack[T]):
     def render(self) -> List[str]:
         items = list(self)
         if not items:
             return []
 
-        # Wrap each item in a Box so all columns align by height
-        boxes: List[Box[Node]] = []
-        for node in items:
-            b: Box[Node] = Box()
-            b.append(node)
-            boxes.append(b)
+        # 1) fix each child width to its current width
+        widths: List[int] = []
+        heights: List[int] = []
+        for c in items:
+            w, h = c.size   # single pass for both
+            c.resize(width=w)
+            widths.append(w)
+            heights.append(h)
 
-        max_height = max(b.height for b in boxes)
-        for b in boxes:
-            b.resize(height=max_height)
+        # 2) compute max height
+        row_h = max(heights) if heights else 0
 
-        cols = [b.render() for b in boxes]
+        # 3) fix each child height to max height
+        for c in items:
+            c.resize(height=row_h)
 
+        # 4) join
+        if row_h == 0:
+            return []
+        cols = [c.lines for c in items]
         out: List[str] = []
-        for row in range(max_height):
-            out.append("".join(col[row] for col in cols))
+        for r in range(row_h):
+            out.append("".join(col[r] for col in cols))
         return out
 
 

@@ -4,14 +4,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, Union
 
-from dsl.core import dsl
+from dsl.core import render
 from dsl.variable import kconfig
 
 
-Element = dsl.Node
+Element = render.Node
 
 
-class StringKey(dsl.Text):
+class StringKey(render.Text):
     """
     Render: <keyword> "<escaped value>"
 
@@ -32,7 +32,7 @@ class StringKey(dsl.Text):
 
 # ===== Typed options: config / menuconfig =====
 
-class TypedOption(dsl.Block, ABC):
+class TypedOption(render.Block, ABC):
     """
     Generic typed symbol:
 
@@ -57,7 +57,7 @@ class TypedOption(dsl.Block, ABC):
         keyword = "menuconfig" if menuconfig else "config"
 
         # First line, not indented.
-        begin = dsl.Text(f"{keyword} {name}")
+        begin = render.Text(f"{keyword} {name}")
 
         # Block indents all children by one level, no margins.
         super().__init__(
@@ -70,7 +70,7 @@ class TypedOption(dsl.Block, ABC):
 
         # First child: type + optional prompt.
         if prompt is None:
-            self.append(dsl.Text(type_keyword))
+            self.append(render.Text(type_keyword))
         else:
             # bool "Prompt", string "Prompt", etc.
             self.append(StringKey(type_keyword, prompt))
@@ -101,14 +101,14 @@ class TypedOption(dsl.Block, ABC):
     ) -> "TypedOption":
         v = self.format_default(value)
         if when is None:
-            self.append(dsl.Text(f"default {v}"))
+            self.append(render.Text(f"default {v}"))
         else:
-            self.append(dsl.Text(f"default {v} if {when}"))
+            self.append(render.Text(f"default {v} if {when}"))
         return self
 
     def add_depends(self, *conds: kconfig.KVar) -> "TypedOption":
         for cond in conds:
-            self.append(dsl.Text(f"depends on {cond}"))
+            self.append(render.Text(f"depends on {cond}"))
         return self
 
 
@@ -201,7 +201,7 @@ class Menuconfig(Bool):
 
 # ===== Block constructs: if / menu =====
 
-class BlockElement(dsl.Block):
+class BlockElement(render.Block):
     """
     Helper for simple:
 
@@ -210,7 +210,7 @@ class BlockElement(dsl.Block):
       end<keyword>
     """
 
-    def __init__(self, begin: dsl.Node, *children: Element):
+    def __init__(self, begin: render.Node, *children: Element):
         if not begin:
             raise ValueError("Expecting begin statement")
         
@@ -219,12 +219,12 @@ class BlockElement(dsl.Block):
             raise ValueError("Empty begin is not allowed")
         
         keyword = words[0].lower()
-        end = dsl.Text(f"end{keyword}")
+        end = render.Text(f"end{keyword}")
 
         super().__init__(
             begin=begin,
             end=end,
-            margin=dsl.VSpace(1),
+            margin=render.VSpace(1),
             inner=True,
             outer=True,
         )
@@ -239,7 +239,7 @@ class If(BlockElement):
     """
 
     def __init__(self, condition: kconfig.KVar, *blocks: Element):
-        super().__init__(dsl.Text(f"if {condition}"), *blocks)
+        super().__init__(render.Text(f"if {condition}"), *blocks)
 
 
 class Menu(BlockElement):
@@ -277,14 +277,14 @@ class Choice(BlockElement):
         #   choice
         #       prompt "..."
         #       <type_keyword>
-        header = dsl.Block(
-                begin=dsl.Text("choice"),
+        header = render.Block(
+                begin=render.Text("choice"),
                 end=None,
                 margin=None,
                 inner=False,
                 outer=False,
             ).append(StringKey("prompt", prompt)
-            ).append(dsl.Text(type_keyword)
+            ).append(render.Text(type_keyword)
         )
 
         # Main Choice block:
