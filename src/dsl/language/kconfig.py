@@ -56,7 +56,6 @@ class TypedOption(render.Block, ABC):
     ):
         keyword = "menuconfig" if menuconfig else "config"
 
-        # First line, not indented.
         begin = render.Text(f"{keyword} {name}")
 
         # Block indents all children by one level, no margins.
@@ -87,7 +86,7 @@ class TypedOption(render.Block, ABC):
     ) -> str:
         """
         Shared handling:
-          - kconfig.KVar is always treated as a symbol reference (no quotes).
+          - kconfig.KVar is treated as a symbol reference (no quotes).
           - Other types are delegated to _format_default_value.
         """
         if isinstance(default, kconfig.KVar):
@@ -98,7 +97,7 @@ class TypedOption(render.Block, ABC):
         self,
         value: Union[str, int, bool, kconfig.KVar],
         when: Optional[kconfig.KVar] = None,
-    ) -> "TypedOption":
+    ) -> TypedOption:
         v = self.format_default(value)
         if when is None:
             self.append(render.Text(f"default {v}"))
@@ -106,7 +105,7 @@ class TypedOption(render.Block, ABC):
             self.append(render.Text(f"default {v} if {when}"))
         return self
 
-    def add_depends(self, *conds: kconfig.KVar) -> "TypedOption":
+    def add_depends(self, *conds: kconfig.KVar) -> TypedOption:
         for cond in conds:
             self.append(render.Text(f"depends on {cond}"))
         return self
@@ -211,20 +210,20 @@ class BlockElement(render.Block):
     """
 
     def __init__(self, begin: render.Node, *children: Element):
-        if not begin:
+        if begin is None:
             raise ValueError("Expecting begin statement")
-        
-        words=str(begin).split()
+
+        words = str(begin).split()
         if not words:
             raise ValueError("Empty begin is not allowed")
-        
+
         keyword = words[0].lower()
         end = render.Text(f"end{keyword}")
 
         super().__init__(
             begin=begin,
             end=end,
-            margin=render.VSpace(1),
+            margin=render.BlankLine(1),
             inner=True,
             outer=True,
         )
@@ -250,7 +249,7 @@ class Menu(BlockElement):
     """
 
     def __init__(self, title: str, *blocks: Element):
-        super().__init__(StringKey("menu",title), *blocks)
+        super().__init__(StringKey("menu", title), *blocks)
 
 
 # ===== Choice: special header block =====
@@ -273,28 +272,27 @@ class Choice(BlockElement):
         *choices: Element,
         type_keyword: str = "bool",
     ):
-        # Header block:
+        # Header:
         #   choice
         #       prompt "..."
         #       <type_keyword>
-        header = render.Block(
+        header = (
+            render.Block(
                 begin=render.Text("choice"),
                 end=None,
                 margin=None,
                 inner=False,
                 outer=False,
-            ).append(StringKey("prompt", prompt)
-            ).append(render.Text(type_keyword)
+            )
+            .append(StringKey("prompt", prompt))
+            .append(render.Text(type_keyword))
         )
 
         # Main Choice block:
-        # begin = header (already rendered as choice + its properties)
+        # begin = header (choice + its properties)
         # children = actual alternatives
         # end = endchoice
-        super().__init__(
-            begin=header,
-            *choices
-        )
+        super().__init__(begin=header, *choices)
 
 
 # ===== Simple one-line elements =====

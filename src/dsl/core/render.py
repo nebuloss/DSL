@@ -7,15 +7,8 @@ from typing import Generic, Iterable, List, Optional, Self, TypeVar, get_args
 
 # ========= Core node =========
 
-# ========= Core node =========
-
 class Node(ABC):
     TAB = "\t"
-
-    def __init__(self, width: Optional[int] = None, height: Optional[int] = None):
-        self._width: Optional[int] = None
-        self._height: Optional[int] = None
-        self.resize(width=width, height=height)
 
     @classmethod
     def _indent_line(cls, line: str, level: int) -> str:
@@ -25,72 +18,14 @@ class Node(ABC):
 
     @classmethod
     def indent(cls, level: int, lines: List[str]) -> List[str]:
+        if level <= 0:
+            return list(lines)
         return [cls._indent_line(line, level) for line in lines]
 
+    @property
     @abstractmethod
-    def render(self) -> List[str]:
-        raise NotImplementedError
-
-    @staticmethod
-    def _fit_lines(lines: List[str], width: Optional[int], height: Optional[int]) -> List[str]:
-        if height is not None:
-            if len(lines) > height:
-                lines = lines[:height]
-            else:
-                lines = lines + [""] * (height - len(lines))
-
-        target = width if width is not None else max((len(l) for l in lines), default=0)
-
-        out: List[str] = []
-        for l in lines:
-            ln = len(l)
-            if width is not None and ln > target:
-                out.append(l[:target])
-            elif ln < target:
-                out.append(l + " " * (target - ln))
-            else:
-                out.append(l)
-        return out
-
-    @property
     def lines(self) -> List[str]:
-        return self._fit_lines(self.render(), self._width, self._height)
-
-    # New: compute width and height together with a single render
-    @property
-    def size(self) -> tuple[int, int]:
-        """Return (width, height) using explicit values if set, else compute the missing ones."""
-        w = self._width
-        h = self._height
-
-        if w is not None and h is not None:
-            return w, h
-
-        nat = self.render()  # single render
-        if w is None:
-            w = max((len(line) for line in nat), default=0)
-        if h is None:
-            h = len(nat)
-
-        return w, h
-
-
-    @property
-    def width(self) -> int:
-        w, _ = self.size
-        return w
-
-    @property
-    def height(self) -> int:
-        _, h = self.size
-        return h
-
-    def resize(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
-        if width is not None:
-            self._width = max(0, int(width))
-        if height is not None:
-            self._height = max(0, int(height))
-        return self
+        raise NotImplementedError
 
     def __str__(self) -> str:
         return "\n".join(self.lines)
@@ -102,60 +37,29 @@ class Text(Node):
     def __init__(self, text: str):
         self._text = text
 
-    def render(self) -> List[str]:
+    @property
+    def lines(self) -> List[str]:
         return [self._text]
 
-    @property
-    def width(self) -> int:
-        return len(self._text)
 
-    @property
-    def height(self) -> int:
-        return 1
-
-
-class VSpace(Node):
+class BlankLine(Node):
     """Vertical space: N empty lines."""
     def __init__(self, lines: int = 1):
         self._lines = max(0, int(lines))
 
-    def render(self) -> List[str]:
+    @property
+    def lines(self) -> List[str]:
         return [""] * self._lines
 
-    @property
-    def width(self) -> int:
-        return 0
 
-    @property
-    def height(self) -> int:
-        return self._lines
-
-
-class HSpace(Node):
-    """Horizontal space: 1 line with N spaces."""
-    def __init__(self, spaces: int = 1):
-        self._spaces = max(0, int(spaces))
-
-    def render(self) -> List[str]:
-        return [" " * self._spaces]
-
-    @property
-    def width(self) -> int:
-        return self._spaces
-
-    @property
-    def height(self) -> int:
-        return 1
-
-
-# ========= Base container =========
+# ========= Base vertical stack =========
 
 T = TypeVar("T", bound="Node")
 
 
-class Stack(Node, Generic[T], ABC):
+class Stack(Node, Generic[T]):
     """
-    Generic container with optional margin insertion:
+    Vertical container with optional margin insertion.
 
       inner=False, outer=False -> c0, c1, c2
       inner=True,  outer=False -> c0, m, c1, m, c2
@@ -208,9 +112,9 @@ class Stack(Node, Generic[T], ABC):
         self._inner = bool(inner)
         self._outer = bool(outer)
         return self
-    
+
     @property
-    def child_type(self)->type[Node]:
+    def child_type(self) -> type[Node]:
         return self._child_type
 
     @property
@@ -303,140 +207,78 @@ class Stack(Node, Generic[T], ABC):
         new._children = list(self._children)
         new.append(other)
         return new
-    
-    def __getitem__(self,index:int) -> T:
+
+    def __getitem__(self, index: int) -> T:
         return self._children[index]
-    
+
     def __len__(self) -> int:
         return len(self._children)
 
-    @abstractmethod
-    def render(self) -> List[str]:
-        raise NotImplementedError
+    # ---- layout (vertical) ----
 
     @property
-    def width(self) -> int:
-        lines = self.render()
-        return max((len(line) for line in lines), default=0)
-
-    @property
-    def height(self) -> int:
-        return len(self.render())
-
-
-# ========= Vertical stack =========
-
-class VStack(Stack[T]):
-    def render(self) -> List[str]:
+    def lines(self) -> List[str]:
         out: List[str] = []
         for node in self:
-            out.extend(node.render())
+            out.extend(node.lines)
         return out
 
 
-# ========= Box (rectangular) =========
+# ========= Word-aligned stack =========
 
-class Box(VStack[T]):
+class WordAlignedStack(Stack[T]):
     """
-    Rectangular view on vertical content.
-    Pads or crops to (width, height) if provided.
+    Align children on word boundaries.
+
+    For each child:
+    - Join its lines with spaces.
+    - Split on whitespace into words.
+    Columns are sized by the widest word in each column.
+    Only existing words are modified, then each row is joined with spaces.
     """
-
-    def __init__(
-        self,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        margin: Optional[Node] = None,
-        inner: bool = True,
-        outer: bool = False,
-    ):
-        self._width = int(width) if width is not None else None
-        self._height = int(height) if height is not None else None
-        super().__init__(margin=margin, inner=inner, outer=outer)
-
-    def resize(self, width: Optional[int] = None, height: Optional[int] = None) -> Self:
-        if width is not None:
-            self._width = max(0, int(width))
-        if height is not None:
-            self._height = max(0, int(height))
-        return self
-
-    def render(self) -> List[str]:
-        lines = super().render()
-
-        # static height
-        if self._height is not None:
-            if len(lines) > self._height:
-                lines = lines[: self._height]
-            else:
-                lines = lines + [""] * (self._height - len(lines))
-
-        # target width
-        natural = max((len(l) for l in lines), default=0)
-        target = self._width if self._width is not None else natural
-
-        out: List[str] = []
-        for l in lines:
-            if len(l) < target:
-                out.append(l + " " * (target - len(l)))
-            elif len(l) > target and self._width is not None:
-                out.append(l[:target])
-            else:
-                out.append(l)
-        return out
 
     @property
-    def width(self) -> int:
-        if self._width is not None:
-            return self._width
-        return super().width
-
-    @property
-    def height(self) -> int:
-        if self._height is not None:
-            return self._height
-        return super().height
-
-
-# ========= Horizontal stack =========
-
-class HStack(Stack[T]):
-    def render(self) -> List[str]:
-        items = list(self)
-        if not items:
-            return []
-
-        # 1) fix each child width to its current width
+    def lines(self) -> List[str]:
+        rows: List[List[str]] = []
         widths: List[int] = []
-        heights: List[int] = []
-        for c in items:
-            w, h = c.size   # single pass for both
-            c.resize(width=w)
-            widths.append(w)
-            heights.append(h)
 
-        # 2) compute max height
-        row_h = max(heights) if heights else 0
+        # Pass 1: collect rows and compute max width per column
+        for node in self:
+            raw = " ".join(line.rstrip() for line in node.lines).strip()
+            words = raw.split() if raw else []
+            rows.append(words)
 
-        # 3) fix each child height to max height
-        for c in items:
-            c.resize(height=row_h)
+            for i, w in enumerate(words):
+                lw = len(w)
+                if i == len(widths):
+                    widths.append(lw)
+                elif lw > widths[i]:
+                    widths[i] = lw
 
-        # 4) join
-        if row_h == 0:
+        if not rows:
             return []
-        cols = [c.lines for c in items]
+
+        # Pass 2: pad existing words, then join
         out: List[str] = []
-        for r in range(row_h):
-            out.append("".join(col[r] for col in cols))
+        for words in rows:
+            n = len(words)
+            if n > 1:
+                for i in range(n - 1):
+                    w = words[i]
+                    pad = widths[i] - len(w)
+                    if pad > 0:
+                        words[i] = w + " " * pad
+
+            out.append(" ".join(words) if n else "")
+
         return out
 
 
 # ========= Block =========
 
-class Block(VStack[T]):
+class Block(Stack[T]):
     """
-    Begin / end wrapper with indented inner content.
+    Begin/end wrapper with indented inner content.
     """
 
     def __init__(
@@ -456,16 +298,18 @@ class Block(VStack[T]):
         self._end = end
         super().__init__(margin=margin, inner=inner, outer=outer)
 
-    def render(self) -> List[str]:
+    @property
+    def lines(self) -> List[str]:
         out: List[str] = []
 
         if self._begin is not None:
-            out.extend(self._begin.render())
+            out.extend(self._begin.lines)
 
-        inner_lines = super().render()
-        out.extend(self.indent(1, inner_lines))
+        inner_lines = super().lines
+        if inner_lines:
+            out.extend(self.indent(1, inner_lines))
 
         if self._end is not None:
-            out.extend(self._end.render())
+            out.extend(self._end.lines)
 
         return out
