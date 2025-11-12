@@ -261,6 +261,48 @@ class VarConst(VarExpr[OpsT], ABC):
 
     def __len__(self) -> int:
         return 0
+    
+    def _oval(self, other: "VarConst[OpsT]") -> Any:
+        if not isinstance(other, VarConst):
+            raise TypeError(f"expected VarConst got {type(other).__name__}")
+        self._check_same_ops(other)
+        return other.val
+    
+    # addition
+    def __add__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self.val + self._oval(other))  # type: ignore[call-arg]
+
+    def __radd__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self._oval(other) + self.val)  # type: ignore[call-arg]
+
+    # multiplication
+    def __mul__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self.val * self._oval(other))  # type: ignore[call-arg]
+
+    def __rmul__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self._oval(other) * self.val)  # type: ignore[call-arg]
+
+    def __imul__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        self.val = self.val * self._oval(other)
+        return self
+
+    # subtraction
+    def __sub__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self.val - self._oval(other))  # type: ignore[call-arg]
+
+    def __rsub__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self._oval(other) - self.val)  # type: ignore[call-arg]
+
+    # true division (/)
+    def __truediv__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self.val / self._oval(other))  # type: ignore[call-arg]
+
+    def __rtruediv__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        return type(self)(self._oval(other) / self.val)  # type: ignore[call-arg]
+
+    def __itruediv__(self, other: "VarConst[OpsT]") -> "VarConst[OpsT]":
+        self.val = self.val / self._oval(other)
+        return self
 
     @classmethod
     def isTrue(cls,x: "VarExpr[OpsT]") -> bool:

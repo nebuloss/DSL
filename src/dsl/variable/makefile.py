@@ -3,7 +3,7 @@
 # =========================
 
 import re
-from typing import Any
+from typing import Any, Optional, Self, Union
 
 from dsl.core.var import (
     LanguageOps,
@@ -105,6 +105,56 @@ MakeOps.Name  = MVar
 MakeOps.Not   = MNot
 MakeOps.And   = MAnd
 MakeOps.Or    = MOr
+
+MExpr=VarExpr
+
+class MExprLike(MExpr[MakeOps]):
+    def __init__(self, val: Union[str,MExpr]):
+        super().__init__()
+        if not isinstance(val, (str, VarExpr)):
+            raise TypeError("Expecting either MExpr or str in input")
+        self._val: str = str(val).strip()
+
+    def __str__(self) -> str:
+        return self._val
+    
+    @classmethod
+    def empty(cls)-> Self:
+        return cls("")
+
+
+class MIf(MExpr[MakeOps]):
+    """$(if cond,then[,else])"""
+    def __init__(self, cond: MExprLike, then: MExprLike = MExprLike.empty(), else_: Optional[MExprLike] = None):
+        self._cond = cond
+        self._then = then
+        self._else = else_
+
+    def __str__(self) -> str:
+        if self._else is None:
+            return f"$(if {self._cond},{self._then})"
+        return f"$(if {self._cond},{self._then},{self._else})"
+
+
+class MCall(MExpr[MakeOps]):
+    """$(call name[,arg1[,arg2...]])"""
+    def __init__(self, name: MExprLike, *args: MExprLike):
+        self._name = name
+        self._args = list(args)
+
+    def __str__(self) -> str:
+        if not self._args:
+            return f"$(call {self._name})"
+        return f"$(call {self._name},{','.join(str(a) for a in self._args)})"
+
+
+class MEval(MExpr[MakeOps]):
+    """$(eval text) as an expression (expands to empty string at runtime)"""
+    def __init__(self, text: MExprLike):
+        self._text = text
+
+    def __str__(self) -> str:
+        return f"$(eval {self._text})"
 
 
 # ---------- Convenience helpers ----------

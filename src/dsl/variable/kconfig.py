@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from dsl.core.var import (
     LanguageOps,
@@ -23,9 +23,117 @@ class KconfigOps(LanguageOps):
 
 # ---------- Concrete Kconfig nodes ----------
 
+KExpr=VarExpr
+
+from typing import Any, Optional, Tuple
+
 class KConst(VarConst[KconfigOps]):
+
+    SupportedType = Literal["string", "int", "hex", "bool"]
+
+    def __init__(self, val: Any, val_type: Optional["KConst.SupportedType"] = None):
+        kind, normalized = self._infer_or_validate(val, val_type)
+        self._val_type: "KConst.SupportedType" = kind
+        super().__init__(normalized)
+
+    @property
+    def val_type(self) -> "KConst.SupportedType":
+        return self._val_type
+
+    @staticmethod
+    def _infer_or_validate(
+        val: Any,
+        val_type: Optional["KConst.SupportedType"],
+    ) -> Tuple["KConst.SupportedType", Any]:
+        if val_type is None:
+            match val:
+                case bool():
+                    return "bool", bool(val)
+                case int():
+                    return "int", int(val)
+                case str():
+                    return "string", val
+                case _:
+                    raise TypeError(f"Unsupported KConst value type: {type(val).__name__}")
+
+        match val_type:
+            case "bool":
+                match val:
+                    case bool():
+                        return "bool", val
+                    case str():
+                        s = val.strip().lower()
+                        if s in ("y", "n"):
+                            return "bool", (s == "y")
+                        raise TypeError("Bool constant must be bool or 'y'/'n'")
+                    case _:
+                        raise TypeError("Bool constant must be bool or 'y'/'n'")
+
+            case "string":
+                match val:
+                    case str():
+                        return "string", val
+                    case _:
+                        raise TypeError("String constant must be str")
+
+            case "int":
+                match val:
+                    case bool():
+                        return "int", int(val)
+                    case int():
+                        return "int", int(val)
+                    case str():
+                        s = val.strip()
+                        if s.isdigit():
+                            return "int", int(s)
+                        raise TypeError("Int constant must be int or decimal str")
+                    case _:
+                        raise TypeError("Int constant must be int or decimal str")
+
+            case "hex":
+                match val:
+                    case bool():
+                        return "hex", int(val)
+                    case int():
+                        return "hex", int(val)
+                    case str():
+                        s = val.strip()
+                        try:
+                            parsed = int(s, 16)
+                        except ValueError:
+                            raise TypeError("Hex constant must be int or hex string")
+                        return "hex", parsed
+                    case _:
+                        raise TypeError("Hex constant must be int or hex string")
+
+            case _:
+                raise TypeError(f"Unknown SupportedType {val_type!r}")
+
+    @staticmethod
+    def _escape_string(s: str) -> str:
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
     def __str__(self) -> str:
-        return "y" if self.val else "n"
+        match self._val_type:
+            case "bool":
+                return "y" if bool(self.val) else "n"
+            case "string":
+                return f"\"{self._escape_string(str(self.val))}\""
+            case "int":
+                return str(int(self.val))
+            case "hex":
+                return f"0x{int(self.val):X}"
+            case _:
+                return str(self.val)
+
+    @classmethod
+    def true(cls) -> "KConst":
+        return cls(True, "bool")
+
+    @classmethod
+    def false(cls) -> "KConst":
+        return cls(False, "bool")
+
 
 
 class KVar(VarName[KconfigOps]):

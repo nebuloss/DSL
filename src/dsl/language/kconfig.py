@@ -32,6 +32,8 @@ class StringKey(render.Text):
 
 # ===== Typed options: config / menuconfig =====
 
+from typing import Optional, Union
+
 class TypedOption(render.Block, ABC):
     """
     Generic typed symbol:
@@ -55,61 +57,30 @@ class TypedOption(render.Block, ABC):
         menuconfig: bool = False,
     ):
         keyword = "menuconfig" if menuconfig else "config"
-
         begin = render.Text(f"{keyword} {name}")
+        super().__init__(begin=begin, end=None, margin=None, inner=False, outer=False)
 
-        # Block indents all children by one level, no margins.
-        super().__init__(
-            begin=begin,
-            end=None,
-            margin=None,
-            inner=False,
-            outer=False,
-        )
-
-        # First child: type + optional prompt.
         if prompt is None:
             self.append(render.Text(type_keyword))
         else:
-            # bool "Prompt", string "Prompt", etc.
             self.append(StringKey(type_keyword, prompt))
-
-    @abstractmethod
-    def _format_default_value(self, default: Union[str, int, bool]) -> str:
-        """
-        Subclasses implement formatting for non-kconfig.KVar values.
-        """
-
-    def format_default(
-        self,
-        default: Union[str, int, bool, kconfig.KVar],
-    ) -> str:
-        """
-        Shared handling:
-          - kconfig.KVar is treated as a symbol reference (no quotes).
-          - Other types are delegated to _format_default_value.
-        """
-        if isinstance(default, kconfig.KVar):
-            return str(default)
-        return self._format_default_value(default)
 
     def add_default(
         self,
-        value: Union[str, int, bool, kconfig.KVar],
+        value: kconfig.KExpr,
         when: Optional[kconfig.KVar] = None,
-    ) -> TypedOption:
-        v = self.format_default(value)
+    ) -> "TypedOption":
+
         if when is None:
-            self.append(render.Text(f"default {v}"))
+            self.append(render.Text(f"default {value}"))
         else:
-            self.append(render.Text(f"default {v} if {when}"))
+            self.append(render.Text(f"default {value} if {when}"))
         return self
 
-    def add_depends(self, *conds: kconfig.KVar) -> TypedOption:
+    def add_depends(self, *conds: kconfig.KVar) -> "TypedOption":
         for cond in conds:
             self.append(render.Text(f"depends on {cond}"))
         return self
-
 
 class Bool(TypedOption):
     def __init__(
@@ -120,16 +91,15 @@ class Bool(TypedOption):
     ):
         super().__init__(name, "bool", prompt, menuconfig=menuconfig)
 
-    def _format_default_value(self, default: Union[bool, str]) -> str:
-        if isinstance(default, bool):
-            return "y" if default else "n"
-        if isinstance(default, str):
-            v = default.strip().lower()
-            if v in ("y", "n"):
-                return v
-        raise TypeError("Bool default must be bool or 'y'/'n'")
-
-
+    def add_default(
+        self,
+        value: kconfig.KExpr,
+        when: Optional[kconfig.KVar] = None,
+    ) -> "Bool":
+        if isinstance(value, kconfig.KConst) and value.val_type != "bool":
+            raise TypeError("Bool default must be a KConst of type 'bool'")
+        return super().add_default(value, when)
+    
 class String(TypedOption):
     def __init__(
         self,
@@ -139,12 +109,15 @@ class String(TypedOption):
     ):
         super().__init__(name, "string", prompt, menuconfig=menuconfig)
 
-    def _format_default_value(self, default: str) -> str:
-        if isinstance(default, str):
-            return f'"{StringKey.escape(default)}"'
-        raise TypeError("String default must be str")
-
-
+    def add_default(
+        self,
+        value: Union[kconfig.KConst, kconfig.KVar],
+        when: Optional[kconfig.KVar] = None,
+    ) -> "String":
+        if isinstance(value, kconfig.KConst) and value.val_type != "string":
+            raise TypeError("String default must be a KConst of type 'string'")
+        return super().add_default(value, when)
+    
 class Int(TypedOption):
     def __init__(
         self,
@@ -154,13 +127,14 @@ class Int(TypedOption):
     ):
         super().__init__(name, "int", prompt, menuconfig=menuconfig)
 
-    def _format_default_value(self, default: Union[int, str]) -> str:
-        if isinstance(default, int):
-            return str(default)
-        if isinstance(default, str) and default.strip().isdigit():
-            return default.strip()
-        raise TypeError("Int default must be int or decimal str")
-
+    def add_default(
+        self,
+        value: Union[kconfig.KConst, kconfig.KVar],
+        when: Optional[kconfig.KVar] = None,
+    ) -> "Int":
+        if isinstance(value, kconfig.KConst) and value.val_type != "int":
+            raise TypeError("Int default must be a KConst of type 'int'")
+        return super().add_default(value, when)
 
 class Hex(TypedOption):
     def __init__(
@@ -171,18 +145,14 @@ class Hex(TypedOption):
     ):
         super().__init__(name, "hex", prompt, menuconfig=menuconfig)
 
-    def _format_default_value(self, default: Union[int, str]) -> str:
-        if isinstance(default, int):
-            return f"0x{default:X}"
-        if isinstance(default, str):
-            s = default.strip()
-            if s.lower().startswith("0x"):
-                return s
-            try:
-                return f"0x{int(s, 16):X}"
-            except ValueError:
-                pass
-        raise TypeError("Hex default must be int or hex str")
+    def add_default(
+        self,
+        value: Union[kconfig.KConst, kconfig.KVar],
+        when: Optional[kconfig.KVar] = None,
+    ) -> "Hex":
+        if isinstance(value, kconfig.KConst) and value.val_type != "hex":
+            raise TypeError("Hex default must be a KConst of type 'hex'")
+        return super().add_default(value, when)
 
 
 class Menuconfig(Bool):
