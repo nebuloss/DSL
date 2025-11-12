@@ -6,8 +6,7 @@ from typing import List, Optional, Union
 from dsl.core import render
 
 
-from dsl.core.var import VarExpr, VarName  # type: ignore
-from dsl.variable.makefile import  MVar,MExpr2  # type: ignore
+from dsl.variable.makefile import  MExpr, MVar,MConst
 
 Element = render.Node
 
@@ -52,7 +51,7 @@ class Assignment(render.Text):
       ?=   set if not set
       +=   append
     """
-    def __init__(self, var:MVar, value: Union[MVar,str], op: str = "="):
+    def __init__(self, var:MVar, value: MExpr, op: str = "="):
         op = op.strip()
         if op not in ("=", ":=", "?=", "+="):
             raise ValueError(f"Invalid assignment operator: {op}")
@@ -60,22 +59,22 @@ class Assignment(render.Text):
 
 
 class Set(Assignment):
-    def __init__(self, var:MVar, value: Union[MVar,str]):
+    def __init__(self, var:MVar, value: MExpr):
         super().__init__(var, value, "=")
 
 
 class SetImmediate(Assignment):
-    def __init__(self, var:MVar, value: Union[MVar,str]):
+    def __init__(self, var:MVar, value: MExpr):
         super().__init__(var, value, ":=")
 
 
 class SetDefault(Assignment):
-    def __init__(self, var:MVar, value: Union[MVar,str]):
+    def __init__(self, var:MVar, value: MExpr):
         super().__init__(var, value, "?=")
 
 
 class Append(Assignment):
-    def __init__(self, var:MVar, value: Union[MVar,str]):
+    def __init__(self, var:MVar, value: MExpr):
         super().__init__(var, value, "+=")
 
 
@@ -98,17 +97,13 @@ class _BaseIf(render.Block):
     def __init__(
         self,
         header: str,
-        *,
         margin: Optional[render.Node] = None,
         inner: bool = True,
         outer: bool = False,
     ):
-        header = header.strip()
-        if not header:
-            raise ValueError("Empty conditional header")
 
         super().__init__(
-            begin=render.Text(header),
+            begin=render.Text(header.strip()),
             end=render.Text("endif"),
             margin=margin,
             inner=inner,
@@ -154,7 +149,7 @@ class _BaseIf(render.Block):
 
 
 class If(_BaseIf):
-    def __init__(self, condition: Union[str, MExpr2], **kw):
+    def __init__(self, condition: MExpr, **kw):
         super().__init__(f"if {str(condition).strip()}", **kw)
 
 
@@ -169,24 +164,24 @@ class IfNDef(_BaseIf):
 
 
 class IfEq(_BaseIf):
-    def __init__(self, a: Union[str, MExpr2], b: Union[str, MExpr2], **kw):
+    def __init__(self, a: MExpr, b: MExpr, **kw):
         super().__init__(f"ifeq ({a},{b})", **kw)
 
 
 class IfNEq(_BaseIf):
-    def __init__(self, a: Union[str, MExpr2], b: Union[str, MExpr2], **kw):
+    def __init__(self, a: MExpr, b: MExpr, **kw):
         super().__init__(f"ifneq ({a},{b})", **kw)
 
 
 # ===== define / endef =====
 
 class Define(render.Block):
-    def __init__(self, name: str, *body: Element):
+    def __init__(self, name: MVar, *body: Element):
         name = name.strip()
         if not name:
             raise ValueError("Macro name cannot be empty")
 
-        begin = render.Text(f"define {name}")
+        begin = render.Text(f"define {name.name}")
         end = render.Text("endef")
 
         super().__init__(

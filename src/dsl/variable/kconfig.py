@@ -152,7 +152,7 @@ class KVar(VarName[KconfigOps]):
     @staticmethod
     def normalize(name: str) -> str:
         # Generic normalization, then uppercase for Kconfig style.
-        base = VarName.normalize(name)
+        base = super().normalize(name)
         return base.upper()
 
     def __str__(self) -> str:

@@ -34,17 +34,6 @@ class MConst(VarConst[MakeOps]):
 
 
 class MVar(VarName[MakeOps]):
-    @staticmethod
-    def normalize(name: str) -> str:
-        # Replace spaces, tabs, hyphens with _, then validate identifier
-        s = name.strip()
-        if not s:
-            raise ValueError("Empty variable name")
-        s = re.sub(r"[ \t-]+", "_", s)
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", s):
-            raise ValueError(f"Illegal variable name: {name!r}")
-        return s
-
     def __str__(self) -> str:
         return f"$({self.name})"
 
@@ -108,24 +97,9 @@ MakeOps.Or    = MOr
 
 MExpr=VarExpr
 
-class MExprLike(MExpr[MakeOps]):
-    def __init__(self, val: Union[str,MExpr]):
-        super().__init__()
-        if not isinstance(val, (str, VarExpr)):
-            raise TypeError("Expecting either MExpr or str in input")
-        self._val: str = str(val).strip()
-
-    def __str__(self) -> str:
-        return self._val
-    
-    @classmethod
-    def empty(cls)-> Self:
-        return cls("")
-
-
 class MIf(MExpr[MakeOps]):
     """$(if cond,then[,else])"""
-    def __init__(self, cond: MExprLike, then: MExprLike = MExprLike.empty(), else_: Optional[MExprLike] = None):
+    def __init__(self, cond: MExpr, then: MExpr = MConst.false(), else_: Optional[MExpr] = None):
         self._cond = cond
         self._then = then
         self._else = else_
@@ -138,7 +112,7 @@ class MIf(MExpr[MakeOps]):
 
 class MCall(MExpr[MakeOps]):
     """$(call name[,arg1[,arg2...]])"""
-    def __init__(self, name: MExprLike, *args: MExprLike):
+    def __init__(self, name: MExpr, *args: MExpr):
         self._name = name
         self._args = list(args)
 
@@ -150,7 +124,7 @@ class MCall(MExpr[MakeOps]):
 
 class MEval(MExpr[MakeOps]):
     """$(eval text) as an expression (expands to empty string at runtime)"""
-    def __init__(self, text: MExprLike):
+    def __init__(self, text: MExpr):
         self._text = text
 
     def __str__(self) -> str:
