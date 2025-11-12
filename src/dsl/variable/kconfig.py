@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 from dsl.core.var import (
     LanguageOps,
@@ -61,6 +61,8 @@ class KConst(VarConst[KconfigOps]):
                 match val:
                     case bool():
                         return "bool", val
+                    case int():
+                        return "bool", bool(val)
                     case str():
                         s = val.strip().lower()
                         if s in ("y", "n"):
@@ -70,18 +72,14 @@ class KConst(VarConst[KconfigOps]):
                         raise TypeError("Bool constant must be bool or 'y'/'n'")
 
             case "string":
-                match val:
-                    case str():
-                        return "string", val
-                    case _:
-                        raise TypeError("String constant must be str")
+               return "string", str(val)
 
             case "int":
                 match val:
                     case bool():
                         return "int", int(val)
                     case int():
-                        return "int", int(val)
+                        return "int", val
                     case str():
                         s = val.strip()
                         if s.isdigit():
@@ -95,7 +93,7 @@ class KConst(VarConst[KconfigOps]):
                     case bool():
                         return "hex", int(val)
                     case int():
-                        return "hex", int(val)
+                        return "hex", val
                     case str():
                         s = val.strip()
                         try:
@@ -133,8 +131,22 @@ class KConst(VarConst[KconfigOps]):
     @classmethod
     def false(cls) -> "KConst":
         return cls(False, "bool")
-
-
+    
+    @classmethod
+    def bool(cls,val:Union[str,bool,int]) -> "KConst":
+        return cls(val,"bool")
+    
+    @classmethod
+    def int(cls,val:Union[int,str,bool])-> "KConst":
+        return cls(val,"int")
+    
+    @classmethod
+    def string(cls, val) -> "KConst":
+        return cls(val,"string")
+    
+    @classmethod
+    def hex(cls,val:Union[int,str,bool])-> "KConst":
+        return cls(val,"hex")
 
 class KVar(VarName[KconfigOps]):
     @staticmethod
@@ -212,3 +224,15 @@ def any(*vars:KVar) -> VarExpr[KconfigOps]:
     for var in vars:
         result|=var
     return result
+
+def kbool(v: Union[bool, str]) -> KConst:
+    return KConst.bool(v)
+
+def kstr(s: str) -> KConst:
+    return KConst.string(s)
+
+def kint(n: int) -> KConst:
+    return KConst.int(n)
+
+def khex(v: Union[int, str]) -> KConst:
+    return KConst.hex(v)
