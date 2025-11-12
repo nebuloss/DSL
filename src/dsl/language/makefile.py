@@ -55,7 +55,7 @@ class Assignment(render.Text):
         op = op.strip()
         if op not in ("=", ":=", "?=", "+="):
             raise ValueError(f"Invalid assignment operator: {op}")
-        super().__init__(f"{var} {op} {value}")
+        super().__init__(f"{var.name} {op} {value}")
 
 
 class Set(Assignment):
@@ -97,6 +97,7 @@ class _BaseIf(render.Block):
     def __init__(
         self,
         header: str,
+        *body: Element,
         margin: Optional[render.Node] = None,
         inner: bool = True,
         outer: bool = False,
@@ -116,6 +117,8 @@ class _BaseIf(render.Block):
         self._otherwise: render.Stack[Element] = render.Stack(
             margin=margin, inner=inner, outer=outer
         )
+
+        self.extend(*body)
 
     @property
     def conditions(self) -> render.Stack["_BaseIf"]:
@@ -149,28 +152,28 @@ class _BaseIf(render.Block):
 
 
 class If(_BaseIf):
-    def __init__(self, condition: MExpr, **kw):
-        super().__init__(f"if {str(condition).strip()}", **kw)
+    def __init__(self, condition: MExpr, *body,**kw):
+        super().__init__(f"if {str(condition).strip()}",*body, **kw)
 
 
 class IfDef(_BaseIf):
-    def __init__(self, var: MVar, **kw):
-        super().__init__(f"ifdef {var}", **kw)
+    def __init__(self, var: MVar, *body, **kw):
+        super().__init__(f"ifdef {var}", *body, **kw)
 
 
 class IfNDef(_BaseIf):
-    def __init__(self, var: MVar, **kw):
-        super().__init__(f"ifndef {var}", **kw)
+    def __init__(self, var: MVar, *body, **kw):
+        super().__init__(f"ifndef {var}", *body, **kw)
 
 
 class IfEq(_BaseIf):
-    def __init__(self, a: MExpr, b: MExpr, **kw):
-        super().__init__(f"ifeq ({a},{b})", **kw)
+    def __init__(self, a: MExpr, b: MExpr, *body, **kw):
+        super().__init__(f"ifeq ({a},{b})", *body, **kw)
 
 
 class IfNEq(_BaseIf):
-    def __init__(self, a: MExpr, b: MExpr, **kw):
-        super().__init__(f"ifneq ({a},{b})", **kw)
+    def __init__(self, a: MExpr, b: MExpr, *body, **kw):
+        super().__init__(f"ifneq ({a},{b})", *body, **kw)
 
 
 # ===== define / endef =====
@@ -192,3 +195,45 @@ class Define(render.Block):
             outer=False,
         )
         self.extend(body)
+
+class Command(render.Text):
+    """Make recipe command line.
+
+    __init__: takes a full command string (already built).
+    shell():  builds from split args; str args are shell-escaped,
+              VarExpr args are inserted as-is.
+    """
+
+    def __init__(self, line: str, *, silent: bool = False):
+        if not isinstance(line, str):
+            raise TypeError("Command line must be a str")
+        text = line.lstrip()
+        if silent:
+            if not text.startswith("@"):
+                text = "@" + text
+        super().__init__(text)
+
+    @staticmethod
+    def _escape_token(token: str) -> str:
+        if token == "":
+            return "''"
+        parts = token.split("'")
+        return "'" + "'\"'\"'".join(parts) + "'"
+
+    @staticmethod
+    def _format_arg(arg: Union[str, MExpr]) -> str:
+        if isinstance(arg, MExpr):
+            return str(arg)
+        if isinstance(arg, str):
+            return Command._escape_token(arg)
+        raise TypeError("shell args must be str or MExpr")
+
+    @classmethod
+    def shell(cls, name: str, *args: Union[str, MExpr], silent: bool = False) -> "Command":
+        if not isinstance(name, str) or not name:
+            raise TypeError("shell name must be a non-empty str")
+        parts: List[str] = [cls._escape_token(name)]
+        for a in args:
+            parts.append(cls._format_arg(a))
+        line = " ".join(parts)
+        return cls(line, silent=silent)
