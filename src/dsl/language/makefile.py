@@ -7,9 +7,11 @@ from typing import List, Literal, Optional, Union
 from dsl.core import render
 from dsl.variable.makefile import MExpr, MVar, MConst
 
-Element = render.Node
-Makefile = render.Stack[Element]
+MElement = render.Node
 
+class Makefile(render.Stack):
+    def __init__(self):
+        super().__init__(render.BlankLine(), True, False)
 
 # ===== Comments and banners =====
 
@@ -77,9 +79,13 @@ class MAppend(MAssignment):
         super().__init__(var, value, "+=")
 
 
+class MAssignments(render.WordAlignedStack[MAssignment]):
+    def __init__(self):
+        super().__init__(limit=2)
+
 # ===== Conditionals (Makefile syntax) =====
 
-class MIfExpr(render.Block[Element]):
+class MIfExpr(render.Block[MElement]):
     """
     Block with else-if chaining and else body.
 
@@ -97,7 +103,7 @@ class MIfExpr(render.Block[Element]):
     def __init__(
         self,
         header: str,
-        *body: Element,
+        *body: MElement,
         margin: Optional[render.Node] = None,
         inner: bool = True,
         outer: bool = False,
@@ -115,7 +121,7 @@ class MIfExpr(render.Block[Element]):
             inner=inner,
             outer=outer,
         )
-        self._else: render.Stack[Element] = render.Stack(
+        self._else: render.Stack[MElement] = render.Stack(
             margin=margin,
             inner=inner,
             outer=outer,
@@ -129,7 +135,7 @@ class MIfExpr(render.Block[Element]):
         return self._elif
 
     @property
-    def Else(self) -> render.Stack[Element]:
+    def Else(self) -> render.Stack[MElement]:
         """Final else body."""
         return self._else
 
@@ -159,33 +165,33 @@ class MIfExpr(render.Block[Element]):
         return out
 
 class MIf(MIfExpr):
-    def __init__(self, condition: MExpr, *body: Element, **kw):
+    def __init__(self, condition: MExpr, *body: MElement, **kw):
         super().__init__(f"if {str(condition).strip()}", *body, **kw)
 
 
 class MIfDef(MIfExpr):
-    def __init__(self, var: MVar, *body: Element, **kw):
+    def __init__(self, var: MVar, *body: MElement, **kw):
         super().__init__(f"ifdef {var.name}", *body, **kw)
 
 
 class MIfNDef(MIfExpr):
-    def __init__(self, var: MVar, *body: Element, **kw):
+    def __init__(self, var: MVar, *body: MElement, **kw):
         super().__init__(f"ifndef {var.name}", *body, **kw)
 
 
 class MIfEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: Element, **kw):
+    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
         super().__init__(f"ifeq ({a},{b})", *body, **kw)
 
 
 class MIfNEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: Element, **kw):
+    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
         super().__init__(f"ifneq ({a},{b})", *body, **kw)
 
 
 # ===== define / endef =====
 
-class MDefine(render.Block[Element]):
+class MDefine(render.Block[MElement]):
     """
     Multi-line define / endef macro:
 
@@ -196,7 +202,7 @@ class MDefine(render.Block[Element]):
     `name` must be an MVar (only `name.name` is used, not $(NAME)).
     """
 
-    def __init__(self, name: MVar, *body: Element):
+    def __init__(self, name: MVar, *body: MElement):
         if not isinstance(name, MVar):
             raise TypeError(f"Macro name must be MVar, got {type(name).__name__}")
         macro = name.name.strip()

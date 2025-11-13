@@ -10,6 +10,9 @@ from dsl.variable import kconfig
 
 KElement = render.Node
 
+class KConfig(render.Stack):
+    def __init__(self):
+        super().__init__(render.BlankLine(), True, False)
 
 class KStringKey(render.Text):
     """

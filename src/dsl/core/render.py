@@ -237,6 +237,14 @@ class WordAlignedStack(Stack[T]):
     Only existing words are modified, then each row is joined with spaces.
     """
 
+    def __init__(self, margin = None, inner = True, outer = False, limit:Optional[int]=None):
+        super().__init__(margin, inner, outer)
+        self._limit:Optional[int]=limit
+
+    @property
+    def limit(self):
+        return self._limit
+
     @property
     def lines(self) -> List[str]:
         rows: List[List[str]] = []
@@ -250,6 +258,8 @@ class WordAlignedStack(Stack[T]):
 
             for i, w in enumerate(words):
                 lw = len(w)
+                if self._limit is not None and i>=self._limit:
+                    break
                 if i == len(widths):
                     widths.append(lw)
                 elif lw > widths[i]:
@@ -261,7 +271,7 @@ class WordAlignedStack(Stack[T]):
         # Pass 2: pad existing words, then join
         out: List[str] = []
         for words in rows:
-            n = len(words)
+            n = min(len(words),len(widths))
             if n > 1:
                 for i in range(n - 1):
                     w = words[i]
