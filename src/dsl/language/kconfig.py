@@ -195,7 +195,7 @@ class KBlock(language.Block):
         super().__init__(
             begin=begin,
             end=end,
-            margin=language.BlankLine(1),
+            margin=language.BlankLine(),
             inner=True,
             outer=True,
         )
@@ -248,23 +248,22 @@ class KChoice(KBlock):
         #   choice
         #       prompt "..."
         #       <type_keyword>
-        header = (
-            language.Block(
+        header = language.Block(
                 begin=language.Text("choice"),
                 end=None,
                 margin=None,
                 inner=False,
                 outer=False,
-            )
-            .append(KStringKey("prompt", prompt))
-            .append(language.Text(type_keyword))
-        )
+            ).extend((
+                KStringKey("prompt", prompt),
+                language.Text(type_keyword)
+            ))
 
         # Main Choice block:
         # begin = header (choice + its properties)
         # children = actual alternatives
         # end = endchoice
-        super().__init__(begin=header, *choices)
+        super().__init__(header, *choices)
 
 
 # ===== Simple one-line elements =====
