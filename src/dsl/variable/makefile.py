@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from dsl.core.var import (
+from dsl.core.variable import (
     LanguageOps,
     VarExpr,
     VarConst,

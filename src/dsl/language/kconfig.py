@@ -4,17 +4,17 @@ from __future__ import annotations
 from abc import ABC
 from typing import Optional, Union
 
-from dsl.core import render
+from dsl.core import language
 from dsl.variable import kconfig
 
 
-KElement = render.Node
+KElement = language.Node
 
-class KConfig(render.Stack):
+class KConfig(language.Stack):
     def __init__(self):
-        super().__init__(render.BlankLine(), True, False)
+        super().__init__(language.BlankLine(), True, False)
 
-class KStringKey(render.Text):
+class KStringKey(language.Text):
     """
     Render: <keyword> "<escaped value>"
 
@@ -35,7 +35,7 @@ class KStringKey(render.Text):
 
 # ===== Typed options: config / menuconfig =====
 
-class KTypedConfig(render.Block, ABC):
+class KTypedConfig(language.Block, ABC):
     """
     Generic typed symbol:
 
@@ -58,11 +58,11 @@ class KTypedConfig(render.Block, ABC):
         menuconfig: bool = False,
     ):
         keyword = "menuconfig" if menuconfig else "config"
-        begin = render.Text(f"{keyword} {name}")
+        begin = language.Text(f"{keyword} {name}")
         super().__init__(begin=begin, end=None, margin=None, inner=False, outer=False)
 
         if prompt is None:
-            self.append(render.Text(type_keyword))
+            self.append(language.Text(type_keyword))
         else:
             self.append(KStringKey(type_keyword, prompt))
 
@@ -72,15 +72,16 @@ class KTypedConfig(render.Block, ABC):
         when: Optional[kconfig.KVar] = None,
     ) -> "KTypedConfig":
 
-        if when is None:
-            self.append(render.Text(f"default {value}"))
+        if when is None or kconfig.KConst.isTrue(when):
+            self.append(language.Text(f"default {value}"))
         else:
-            self.append(render.Text(f"default {value} if {when}"))
+            self.append(language.Text(f"default {value} if {when}"))
         return self
 
     def add_depends(self, *conds: kconfig.KVar) -> "KTypedConfig":
         for cond in conds:
-            self.append(render.Text(f"depends on {cond}"))
+            if not kconfig.KConst.isTrue(cond):
+                self.append(language.Text(f"depends on {cond}"))
         return self
 
 class KBool(KTypedConfig):
@@ -171,7 +172,7 @@ class KMenuconfig(KBool):
 
 # ===== Block constructs: if / menu =====
 
-class KBlock(render.Block):
+class KBlock(language.Block):
     """
     Helper for simple:
 
@@ -180,7 +181,7 @@ class KBlock(render.Block):
       end<keyword>
     """
 
-    def __init__(self, begin: render.Node, *children: KElement):
+    def __init__(self, begin: language.Node, *children: KElement):
         if begin is None:
             raise ValueError("Expecting begin statement")
 
@@ -189,12 +190,12 @@ class KBlock(render.Block):
             raise ValueError("Empty begin is not allowed")
 
         keyword = words[0].lower()
-        end = render.Text(f"end{keyword}")
+        end = language.Text(f"end{keyword}")
 
         super().__init__(
             begin=begin,
             end=end,
-            margin=render.BlankLine(1),
+            margin=language.BlankLine(1),
             inner=True,
             outer=True,
         )
@@ -209,7 +210,7 @@ class KIf(KBlock):
     """
 
     def __init__(self, condition: kconfig.KVar, *blocks: KElement):
-        super().__init__(render.Text(f"if {condition}"), *blocks)
+        super().__init__(language.Text(f"if {condition}"), *blocks)
 
 
 class KMenu(KBlock):
@@ -248,15 +249,15 @@ class KChoice(KBlock):
         #       prompt "..."
         #       <type_keyword>
         header = (
-            render.Block(
-                begin=render.Text("choice"),
+            language.Block(
+                begin=language.Text("choice"),
                 end=None,
                 margin=None,
                 inner=False,
                 outer=False,
             )
             .append(KStringKey("prompt", prompt))
-            .append(render.Text(type_keyword))
+            .append(language.Text(type_keyword))
         )
 
         # Main Choice block:

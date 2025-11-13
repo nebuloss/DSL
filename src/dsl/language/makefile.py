@@ -4,23 +4,23 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional, Union
 
-from dsl.core import render
+from dsl.core import language
 from dsl.variable.makefile import MExpr, MVar, MConst
 
-MElement = render.Node
+MElement = language.Node
 
-class Makefile(render.Stack):
+class Makefile(language.Stack):
     def __init__(self):
-        super().__init__(render.BlankLine(), True, False)
+        super().__init__(language.BlankLine(), True, False)
 
 # ===== Comments and banners =====
 
-class MComment(render.Text):
+class MComment(language.Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 
-class MBanner(render.Node):
+class MBanner(language.Node):
     def __init__(self, title: str, width: int = 60, char: str = "#"):
         self._title = title.strip()
         self._char = char[0] if char else "#"
@@ -37,11 +37,11 @@ class MBanner(render.Node):
         return [bar, self._char, mid, self._char, bar]
 
 
-MBlankLine=render.BlankLine
+MBlankLine=language.BlankLine
 
 # ===== Assignments (LHS is a var) =====
 
-class MAssignment(render.Text):
+class MAssignment(language.Text):
     """
     VAR op VALUE
 
@@ -79,13 +79,13 @@ class MAppend(MAssignment):
         super().__init__(var, value, "+=")
 
 
-class MAssignments(render.WordAlignedStack[MAssignment]):
+class MAssignments(language.WordAlignedStack[MAssignment]):
     def __init__(self):
         super().__init__(limit=2)
 
 # ===== Conditionals (Makefile syntax) =====
 
-class MIfExpr(render.Block[MElement]):
+class MIfExpr(language.Block[MElement]):
     """
     Block with else-if chaining and else body.
 
@@ -104,24 +104,24 @@ class MIfExpr(render.Block[MElement]):
         self,
         header: str,
         *body: MElement,
-        margin: Optional[render.Node] = None,
+        margin: Optional[language.Node] = None,
         inner: bool = True,
         outer: bool = False,
     ):
         super().__init__(
-            begin=render.Text(header.strip()),
-            end=render.Text("endif"),
+            begin=language.Text(header.strip()),
+            end=language.Text("endif"),
             margin=margin,
             inner=inner,
             outer=outer,
         )
 
-        self._elif: render.Stack["MIfExpr"] = render.Stack(
+        self._elif: language.Stack["MIfExpr"] = language.Stack(
             margin=margin,
             inner=inner,
             outer=outer,
         )
-        self._else: render.Stack[MElement] = render.Stack(
+        self._else: language.Stack[MElement] = language.Stack(
             margin=margin,
             inner=inner,
             outer=outer,
@@ -130,12 +130,12 @@ class MIfExpr(render.Block[MElement]):
         self.extend(body)
 
     @property
-    def Elif(self) -> render.Stack["MIfExpr"]:
+    def Elif(self) -> language.Stack["MIfExpr"]:
         """Chained else-if blocks."""
         return self._elif
 
     @property
-    def Else(self) -> render.Stack[MElement]:
+    def Else(self) -> language.Stack[MElement]:
         """Final else body."""
         return self._else
 
@@ -159,7 +159,7 @@ class MIfExpr(render.Block[MElement]):
         else_lines = self._else.lines
         if else_lines:
             out.append("else")
-            out.extend(render.Node.indent(1, else_lines))
+            out.extend(language.Node.indent(1, else_lines))
 
         out.append(endif_line)
         return out
@@ -191,7 +191,7 @@ class MIfNEq(MIfExpr):
 
 # ===== define / endef =====
 
-class MDefine(render.Block[MElement]):
+class MDefine(language.Block[MElement]):
     """
     Multi-line define / endef macro:
 
@@ -209,8 +209,8 @@ class MDefine(render.Block[MElement]):
         if not macro:
             raise ValueError("Macro name cannot be empty")
 
-        begin = render.Text(f"define {macro}")
-        end = render.Text("endef")
+        begin = language.Text(f"define {macro}")
+        end = language.Text("endef")
 
         super().__init__(
             begin=begin,
@@ -224,7 +224,7 @@ class MDefine(render.Block[MElement]):
 
 # ===== Commands =====
 
-class MCommand(render.Text):
+class MCommand(language.Text):
     """
     Make recipe command line.
 
@@ -291,7 +291,7 @@ class MShellCommand(MCommand):
 
 # ===== Rules =====
 
-class MRule(render.Block[MCommand]):
+class MRule(language.Block[MCommand]):
     """
     Builds exactly:
 
@@ -327,7 +327,7 @@ class MRule(render.Block[MCommand]):
             header += f" | {oo}"
 
         super().__init__(
-            begin=render.Text(header),
+            begin=language.Text(header),
             end=None,
             margin=None,
             inner=True,
