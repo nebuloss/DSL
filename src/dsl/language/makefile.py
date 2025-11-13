@@ -354,9 +354,10 @@ class MInclude(language.Text):
     """
     Makefile include line.
 
-    - Converts Kconfig-style $FOO into Make-style $(FOO)
-    - Escapes backslashes and double quotes
-    - Always renders:  include "path/with $(VARS).mk"
+    - Optionally converts Kconfig-style $FOO into Make-style $(FOO)
+    - Escapes spaces in each path (foo bar -> foo\ bar)
+    - Supports multiple paths:
+        MInclude("a.mk", "b mk") -> include a.mk b\ mk
     """
 
     _VAR_RE = re.compile(r"\$(\w+)")
@@ -367,21 +368,26 @@ class MInclude(language.Text):
         return cls._VAR_RE.sub(r"$(\1)", s)
 
     @staticmethod
-    def _escape_path(path: str) -> str:
-        """Escape backslashes and double quotes for use in a Makefile string."""
-        return path.replace("\\", "\\\\").replace('"', '\\"')
+    def _escape_spaces(path: str) -> str:
+        """Escape spaces for use in a Makefile include."""
+        # Make treats backslash-space as a single space character in the filename.
+        return path.replace(" ", r"\ ")
 
-    def __init__(self, path: str, normalize_vars:bool=False):
-        if not isinstance(path, str):
-            raise TypeError("include path must be a string")
+    def __init__(self, *paths: str, normalize_vars: bool = False):
+        if not paths:
+            raise ValueError("MInclude requires at least one path")
 
-        if normalize_vars:
-            # 1) convert $FOO -> $(FOO)
-            path = self._normalize_vars(path)
+        parts: list[str] = []
 
-        # 2) escape for double-quoted Makefile string
-        path = self._escape_path(path)
+        for p in paths:
+            if not isinstance(p, str):
+                raise TypeError("include paths must be strings")
+            s = p
+            if normalize_vars:
+                s = self._normalize_vars(s)
+            s = self._escape_spaces(s)
+            parts.append(s)
 
-        # 3) final line
-        line = f'include "{path}"'
+        line = "include " + " ".join(parts)
         super().__init__(line)
+
