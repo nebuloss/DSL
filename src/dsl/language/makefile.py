@@ -348,3 +348,40 @@ class MPhony(MRule):
         if not str(targets).strip():
             raise ValueError(".PHONY requires at least one target")
         super().__init__(".PHONY", targets, op=":")
+
+
+class MInclude(language.Text):
+    """
+    Makefile include line.
+
+    - Converts Kconfig-style $FOO into Make-style $(FOO)
+    - Escapes backslashes and double quotes
+    - Always renders:  include "path/with $(VARS).mk"
+    """
+
+    _VAR_RE = re.compile(r"\$(\w+)")
+
+    @classmethod
+    def _normalize_vars(cls, s: str) -> str:
+        """Convert Kconfig-style $FOO into Make-style $(FOO)."""
+        return cls._VAR_RE.sub(r"$(\1)", s)
+
+    @staticmethod
+    def _escape_path(path: str) -> str:
+        """Escape backslashes and double quotes for use in a Makefile string."""
+        return path.replace("\\", "\\\\").replace('"', '\\"')
+
+    def __init__(self, path: str, normalize_vars:bool=False):
+        if not isinstance(path, str):
+            raise TypeError("include path must be a string")
+
+        if normalize_vars:
+            # 1) convert $FOO -> $(FOO)
+            path = self._normalize_vars(path)
+
+        # 2) escape for double-quoted Makefile string
+        path = self._escape_path(path)
+
+        # 3) final line
+        line = f'include "{path}"'
+        super().__init__(line)
