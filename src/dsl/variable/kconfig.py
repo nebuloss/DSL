@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Union
+from typing import Any, Literal, Optional, Tuple, Union
 
 from dsl.core.var import (
     LanguageOps,
@@ -17,18 +17,17 @@ class KconfigOps(LanguageOps):
     """
     LanguageOps table for Kconfig.
     Fields (Const, Name, Not, And, Or) are assigned after class definitions.
+    Optional Add/Sub/Mul/Div are unused for Kconfig.
     """
     pass
 
 
 # ---------- Concrete Kconfig nodes ----------
 
-KExpr=VarExpr
+KExpr = VarExpr[KconfigOps]
 
-from typing import Any, Optional, Tuple
 
 class KConst(VarConst[KconfigOps]):
-
     SupportedType = Literal["string", "int", "hex", "bool"]
 
     def __init__(self, val: Any, val_type: Optional["KConst.SupportedType"] = None):
@@ -72,7 +71,7 @@ class KConst(VarConst[KconfigOps]):
                         raise TypeError("Bool constant must be bool or 'y'/'n'")
 
             case "string":
-               return "string", str(val)
+                return "string", str(val)
 
             case "int":
                 match val:
@@ -124,6 +123,7 @@ class KConst(VarConst[KconfigOps]):
             case _:
                 return str(self.val)
 
+    # Override to ensure type "bool"
     @classmethod
     def true(cls) -> "KConst":
         return cls(True, "bool")
@@ -131,28 +131,31 @@ class KConst(VarConst[KconfigOps]):
     @classmethod
     def false(cls) -> "KConst":
         return cls(False, "bool")
-    
+
+    # Typed constructors
+
     @classmethod
-    def bool(cls,val:Union[str,bool,int]) -> "KConst":
-        return cls(val,"bool")
-    
+    def bool(cls, val: Union[str, bool, int]) -> "KConst":
+        return cls(val, "bool")
+
     @classmethod
-    def int(cls,val:Union[int,str,bool])-> "KConst":
-        return cls(val,"int")
-    
+    def int(cls, val: Union[int, str, bool]) -> "KConst":
+        return cls(val, "int")
+
     @classmethod
-    def string(cls, val) -> "KConst":
-        return cls(val,"string")
-    
+    def string(cls, val: Any) -> "KConst":
+        return cls(val, "string")
+
     @classmethod
-    def hex(cls,val:Union[int,str,bool])-> "KConst":
-        return cls(val,"hex")
+    def hex(cls, val: Union[int, str, bool]) -> "KConst":
+        return cls(val, "hex")
+
 
 class KVar(VarName[KconfigOps]):
     @staticmethod
     def normalize(name: str) -> str:
-        # Generic normalization, then uppercase for Kconfig style.
-        base = super().normalize(name)
+        # Use VarName normalization, then uppercase for Kconfig style
+        base = VarName.normalize(name)
         return base.upper()
 
     def __str__(self) -> str:
@@ -197,42 +200,69 @@ KconfigOps.Name = KVar
 KconfigOps.Not = KNot
 KconfigOps.And = KAnd
 KconfigOps.Or = KOr
+# KconfigOps.Add/Sub/Mul/Div remain None (no arithmetic)
 
 
-# ---------- Convenience helpers ----------
+# ---------- Convenience namespace (no free functions) ----------
 
-def const(val: Any) -> KConst:
-    return KConst(val)
+class K:
+    """
+    Namespace for Kconfig helpers, instead of free functions.
+    Usage:
+        K.const(1)
+        K.var("FOO")
+        K.true()
+        K.all(K.var("A"), K.var("B"))
+    """
 
-def var(name: str) -> KVar:
-    return KVar(name)
+    # Basic constructors
 
-def true() -> KConst:
-    return KConst.true()
+    @staticmethod
+    def const(val: Any) -> KConst:
+        return KConst(val)
 
-def false() -> KConst:
-    return KConst.false()
+    @staticmethod
+    def var(name: str) -> KVar:
+        return KVar(name)
 
-def all(*vars:KVar) -> VarExpr[KconfigOps]:
-    result=KConst.true()
-    for var in vars:
-        result&=var
-    return result
+    @staticmethod
+    def true() -> KConst:
+        return KConst.true()
 
-def any(*vars:KVar) -> VarExpr[KconfigOps]:
-    result=KConst.false()
-    for var in vars:
-        result|=var
-    return result
+    @staticmethod
+    def false() -> KConst:
+        return KConst.false()
 
-def kbool(v: Union[bool, str]) -> KConst:
-    return KConst.bool(v)
+    # Boolean combinators
 
-def kstr(s: str) -> KConst:
-    return KConst.string(s)
+    @staticmethod
+    def all(*vars: KVar) -> KExpr:
+        result: VarExpr[KconfigOps] = KConst.true()
+        for var in vars:
+            result &= var
+        return result  # type: ignore[return-value]
 
-def kint(n: int) -> KConst:
-    return KConst.int(n)
+    @staticmethod
+    def any(*vars: KVar) -> KExpr:
+        result: VarExpr[KconfigOps] = KConst.false()
+        for var in vars:
+            result |= var
+        return result  # type: ignore[return-value]
 
-def khex(v: Union[int, str]) -> KConst:
-    return KConst.hex(v)
+    # Typed constant helpers
+
+    @staticmethod
+    def bool(val: Union[bool, str, int]) -> KConst:
+        return KConst.bool(val)
+
+    @staticmethod
+    def string(val: Any) -> KConst:
+        return KConst.string(val)
+
+    @staticmethod
+    def int(val: Union[int, str, bool]) -> KConst:
+        return KConst.int(val)
+
+    @staticmethod
+    def hex(val: Union[int, str, bool]) -> KConst:
+        return KConst.hex(val)

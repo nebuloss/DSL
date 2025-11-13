@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional, Union
 
 from dsl.core import render
 from dsl.variable import kconfig
 
 
-Element = render.Node
+KElement = render.Node
 
 
-class StringKey(render.Text):
+class KStringKey(render.Text):
     """
     Render: <keyword> "<escaped value>"
 
@@ -32,9 +32,7 @@ class StringKey(render.Text):
 
 # ===== Typed options: config / menuconfig =====
 
-from typing import Optional, Union
-
-class TypedOption(render.Block, ABC):
+class KTypedConfig(render.Block, ABC):
     """
     Generic typed symbol:
 
@@ -63,13 +61,13 @@ class TypedOption(render.Block, ABC):
         if prompt is None:
             self.append(render.Text(type_keyword))
         else:
-            self.append(StringKey(type_keyword, prompt))
+            self.append(KStringKey(type_keyword, prompt))
 
     def add_default(
         self,
         value: kconfig.KExpr,
         when: Optional[kconfig.KVar] = None,
-    ) -> "TypedOption":
+    ) -> "KTypedConfig":
 
         if when is None:
             self.append(render.Text(f"default {value}"))
@@ -77,12 +75,12 @@ class TypedOption(render.Block, ABC):
             self.append(render.Text(f"default {value} if {when}"))
         return self
 
-    def add_depends(self, *conds: kconfig.KVar) -> "TypedOption":
+    def add_depends(self, *conds: kconfig.KVar) -> "KTypedConfig":
         for cond in conds:
             self.append(render.Text(f"depends on {cond}"))
         return self
 
-class Bool(TypedOption):
+class KBool(KTypedConfig):
     def __init__(
         self,
         name: kconfig.KVar,
@@ -95,12 +93,12 @@ class Bool(TypedOption):
         self,
         value: kconfig.KExpr,
         when: Optional[kconfig.KVar] = None,
-    ) -> "Bool":
+    ) -> "KBool":
         if isinstance(value, kconfig.KConst) and value.val_type != "bool":
             raise TypeError("Bool default must be a KConst of type 'bool'")
         return super().add_default(value, when)
     
-class String(TypedOption):
+class KString(KTypedConfig):
     def __init__(
         self,
         name: kconfig.KVar,
@@ -113,12 +111,12 @@ class String(TypedOption):
         self,
         value: Union[kconfig.KConst, kconfig.KVar],
         when: Optional[kconfig.KVar] = None,
-    ) -> "String":
+    ) -> "KString":
         if isinstance(value, kconfig.KConst) and value.val_type != "string":
             raise TypeError("String default must be a KConst of type 'string'")
         return super().add_default(value, when)
     
-class Int(TypedOption):
+class KInt(KTypedConfig):
     def __init__(
         self,
         name: kconfig.KVar,
@@ -131,12 +129,12 @@ class Int(TypedOption):
         self,
         value: Union[kconfig.KConst, kconfig.KVar],
         when: Optional[kconfig.KVar] = None,
-    ) -> "Int":
+    ) -> "KInt":
         if isinstance(value, kconfig.KConst) and value.val_type != "int":
             raise TypeError("Int default must be a KConst of type 'int'")
         return super().add_default(value, when)
 
-class Hex(TypedOption):
+class KHex(KTypedConfig):
     def __init__(
         self,
         name: kconfig.KVar,
@@ -149,13 +147,13 @@ class Hex(TypedOption):
         self,
         value: Union[kconfig.KConst, kconfig.KVar],
         when: Optional[kconfig.KVar] = None,
-    ) -> "Hex":
+    ) -> "KHex":
         if isinstance(value, kconfig.KConst) and value.val_type != "hex":
             raise TypeError("Hex default must be a KConst of type 'hex'")
         return super().add_default(value, when)
 
 
-class Menuconfig(Bool):
+class KMenuconfig(KBool):
     """
     Convenience wrapper:
 
@@ -170,7 +168,7 @@ class Menuconfig(Bool):
 
 # ===== Block constructs: if / menu =====
 
-class BlockElement(render.Block):
+class KBlock(render.Block):
     """
     Helper for simple:
 
@@ -179,7 +177,7 @@ class BlockElement(render.Block):
       end<keyword>
     """
 
-    def __init__(self, begin: render.Node, *children: Element):
+    def __init__(self, begin: render.Node, *children: KElement):
         if begin is None:
             raise ValueError("Expecting begin statement")
 
@@ -200,31 +198,31 @@ class BlockElement(render.Block):
         self.extend(children)
 
 
-class If(BlockElement):
+class KIf(KBlock):
     """
     if CONDITION
         ...
     endif
     """
 
-    def __init__(self, condition: kconfig.KVar, *blocks: Element):
+    def __init__(self, condition: kconfig.KVar, *blocks: KElement):
         super().__init__(render.Text(f"if {condition}"), *blocks)
 
 
-class Menu(BlockElement):
+class KMenu(KBlock):
     """
     menu "Title"
         ...
     endmenu
     """
 
-    def __init__(self, title: str, *blocks: Element):
-        super().__init__(StringKey("menu", title), *blocks)
+    def __init__(self, title: str, *blocks: KElement):
+        super().__init__(KStringKey("menu", title), *blocks)
 
 
 # ===== Choice: special header block =====
 
-class Choice(BlockElement):
+class KChoice(KBlock):
     """
     choice
         prompt "..."
@@ -239,7 +237,7 @@ class Choice(BlockElement):
     def __init__(
         self,
         prompt: str,
-        *choices: Element,
+        *choices: KElement,
         type_keyword: str = "bool",
     ):
         # Header:
@@ -254,7 +252,7 @@ class Choice(BlockElement):
                 inner=False,
                 outer=False,
             )
-            .append(StringKey("prompt", prompt))
+            .append(KStringKey("prompt", prompt))
             .append(render.Text(type_keyword))
         )
 
@@ -267,11 +265,11 @@ class Choice(BlockElement):
 
 # ===== Simple one-line elements =====
 
-class Source(StringKey):
+class KSource(KStringKey):
     def __init__(self, path: str):
         super().__init__("source", path)
 
 
-class Comment(StringKey):
+class KComment(KStringKey):
     def __init__(self, comment: str):
         super().__init__("comment", comment)
