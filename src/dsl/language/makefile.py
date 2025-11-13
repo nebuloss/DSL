@@ -13,12 +13,12 @@ Makefile = render.Stack[Element]
 
 # ===== Comments and banners =====
 
-class Comment(render.Text):
+class MComment(render.Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 
-class Banner(render.Node):
+class MBanner(render.Node):
     def __init__(self, title: str, width: int = 60, char: str = "#"):
         self._title = title.strip()
         self._char = char[0] if char else "#"
@@ -29,19 +29,17 @@ class Banner(render.Node):
         bar = self._char * self._width
         if not self._title:
             return [bar]
-        mid = f"{self._char} {self._title} {self._char}"
+        mid = f"{self._char} {self._title}"
         if len(mid) < self._width:
             mid += " " * (self._width - len(mid))
-        return [bar, mid, bar]
+        return [bar, self._char, mid, self._char, bar]
 
 
-class BlankLine(render.BlankLine):
-    pass
-
+MBlankLine=render.BlankLine
 
 # ===== Assignments (LHS is a var) =====
 
-class Assignment(render.Text):
+class MAssignment(render.Text):
     """
     VAR op VALUE
 
@@ -59,38 +57,38 @@ class Assignment(render.Text):
         super().__init__(f"{var.name} {op} {value}")
 
 
-class Set(Assignment):
+class MSet(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "=")
 
 
-class SetImmediate(Assignment):
+class MSetImmediate(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, ":=")
 
 
-class SetDefault(Assignment):
+class MSetDefault(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "?=")
 
 
-class Append(Assignment):
+class MAppend(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "+=")
 
 
 # ===== Conditionals (Makefile syntax) =====
 
-class _MBaseIf(render.Block[Element]):
+class MIfExpr(render.Block[Element]):
     """
     Block with else-if chaining and else body.
 
-    begin:  "if ..." | "ifdef ..." | "ifndef ..." | "ifeq (...)" | "ifneq (...)"
+    begin:  "if ..."   | "ifdef ..." | "ifndef ..." | "ifeq (...)" | "ifneq (...)"
     end:    "endif"
 
     Else-if rendering rule:
-      for cond in _conditions:
-          cond_lines = cond.lines
+      for block in Elif:
+          cond_lines = block.lines
           if len(cond_lines) >= 2:
               emit "else " + cond_lines[0]
               emit cond_lines[1:-1]   # skip inner "endif"
@@ -112,12 +110,12 @@ class _MBaseIf(render.Block[Element]):
             outer=outer,
         )
 
-        self._conditions: render.Stack[_MBaseIf] = render.Stack(
+        self._elif: render.Stack["MIfExpr"] = render.Stack(
             margin=margin,
             inner=inner,
             outer=outer,
         )
-        self._otherwise: render.Stack[Element] = render.Stack(
+        self._else: render.Stack[Element] = render.Stack(
             margin=margin,
             inner=inner,
             outer=outer,
@@ -126,12 +124,14 @@ class _MBaseIf(render.Block[Element]):
         self.extend(body)
 
     @property
-    def conditions(self) -> render.Stack[_MBaseIf]:
-        return self._conditions
+    def Elif(self) -> render.Stack["MIfExpr"]:
+        """Chained else-if blocks."""
+        return self._elif
 
     @property
-    def otherwise(self) -> render.Stack[Element]:
-        return self._otherwise
+    def Else(self) -> render.Stack[Element]:
+        """Final else body."""
+        return self._else
 
     @property
     def lines(self) -> List[str]:
@@ -143,14 +143,14 @@ class _MBaseIf(render.Block[Element]):
         endif_line = out.pop()
 
         # Else-if branches
-        for cond in self._conditions:
-            cond_lines = cond.lines
+        for block in self._elif:
+            cond_lines = block.lines
             if len(cond_lines) >= 2:
                 out.append("else " + cond_lines[0])
                 out.extend(cond_lines[1:-1])
 
         # Final else
-        else_lines = self._otherwise.lines
+        else_lines = self._else.lines
         if else_lines:
             out.append("else")
             out.extend(render.Node.indent(1, else_lines))
@@ -158,35 +158,34 @@ class _MBaseIf(render.Block[Element]):
         out.append(endif_line)
         return out
 
-
-class If(_MBaseIf):
+class MIf(MIfExpr):
     def __init__(self, condition: MExpr, *body: Element, **kw):
         super().__init__(f"if {str(condition).strip()}", *body, **kw)
 
 
-class IfDef(_MBaseIf):
+class MIfDef(MIfExpr):
     def __init__(self, var: MVar, *body: Element, **kw):
         super().__init__(f"ifdef {var.name}", *body, **kw)
 
 
-class IfNDef(_MBaseIf):
+class MIfNDef(MIfExpr):
     def __init__(self, var: MVar, *body: Element, **kw):
         super().__init__(f"ifndef {var.name}", *body, **kw)
 
 
-class IfEq(_MBaseIf):
+class MIfEq(MIfExpr):
     def __init__(self, a: MExpr, b: MExpr, *body: Element, **kw):
         super().__init__(f"ifeq ({a},{b})", *body, **kw)
 
 
-class IfNEq(_MBaseIf):
+class MIfNEq(MIfExpr):
     def __init__(self, a: MExpr, b: MExpr, *body: Element, **kw):
         super().__init__(f"ifneq ({a},{b})", *body, **kw)
 
 
 # ===== define / endef =====
 
-class Define(render.Block[Element]):
+class MDefine(render.Block[Element]):
     """
     Multi-line define / endef macro:
 
@@ -219,7 +218,7 @@ class Define(render.Block[Element]):
 
 # ===== Commands =====
 
-class Command(render.Text):
+class MCommand(render.Text):
     """
     Make recipe command line.
 
@@ -235,7 +234,7 @@ class Command(render.Text):
         super().__init__(text)
 
 
-class ShellCommand(Command):
+class MShellCommand(MCommand):
     """
     Convenience wrapper to build a command line from arguments.
 
@@ -286,7 +285,7 @@ class ShellCommand(Command):
 
 # ===== Rules =====
 
-class Rule(render.Block[Command]):
+class MRule(render.Block[MCommand]):
     """
     Builds exactly:
 
@@ -330,7 +329,7 @@ class Rule(render.Block[Command]):
         )
 
 
-class Phony(Rule):
+class MPhony(MRule):
     """
     .PHONY declaration helper.
 
