@@ -10,6 +10,7 @@ from typing import (
     Generic,
     List,
     Optional,
+    Self,
     Tuple,
     Type,
     TypeVar,
@@ -343,6 +344,12 @@ class VarName(VarExpr[OpsT], ABC):
 
     def __len__(self) -> int:
         return 1
+    
+    def add_prefix(self, prefix: str) -> Self:
+        return type(self)(f"{prefix}_{self.name}")
+
+    def add_suffix(self, suffix: str) -> Self:
+        return type(self)(f"{self.name}_{suffix}")
 
 
 # =====================================================================
