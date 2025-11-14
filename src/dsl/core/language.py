@@ -70,30 +70,21 @@ class BlankLine(Node):
         return [""] * self._lines
 
 
-# ========= Base vertical stack =========
+# ========= SimpleStack (no margins) =========
 
 T = TypeVar("T", bound="Node")
 
 
-class Stack(Node, Generic[T]):
+class SimpleStack(Node, Generic[T]):
     """
-    Vertical container with optional margin insertion.
-
-      inner=False, outer=False -> c0, c1, c2
-      inner=True,  outer=False -> c0, m, c1, m, c2
-      inner=False, outer=True  -> m, c0, c1, c2, m
-      inner=True,  outer=True  -> m, c0, m, c1, m, c2, m
+    Simple vertical container without margins.
+    Renders children one after another in order.
     """
 
-    def __init__(
-        self,
-        inner: Optional[Node] = None,
-        outer: Optional[Node] = None
-    ):
-
+    def __init__(self, *children: T):
         self._children: List[T] = []
         self._child_type: type = self._resolve_child_type()
-        self.set_margins(inner,outer)
+        self.extend(children)
 
     # ---- typing helper ----
 
@@ -116,16 +107,6 @@ class Stack(Node, Generic[T]):
         return Node
 
     # ---- configuration ----
-
-    def set_margins(self, inner: Optional[Node]=None, outer:Optional[Node] = None) -> Self:
-        if inner is not None and not isinstance(inner,Node):
-            raise TypeError("inner margin must be a Node")
-        if outer is not None and not isinstance(outer,Node):
-            raise TypeError("outer margin must be a Node")
-
-        self._inner = inner
-        self._outer = outer
-        return self
 
     @property
     def child_type(self) -> type[Node]:
@@ -152,46 +133,6 @@ class Stack(Node, Generic[T]):
         for c in children:
             self.append(c)
         return self
-
-     # ---- margin helper ----
-
-    def iter_with_margin(self, *nodes: Optional[Node]):
-        """
-        Core margin logic, reused by __iter__ and by subclasses.
-
-        Uses this stack's inner and outer nodes (if not None) and inserts
-        them around and between the given nodes:
-
-        inner=None, outer=None -> c0, c1, c2
-        inner=X,   outer=None  -> c0, X, c1, X, c2
-        inner=None, outer=Y    -> Y, c0, c1, c2, Y
-        inner=X,   outer=Y     -> Y, c0, X, c1, X, c2, Y
-        """
-        # Filter out None nodes first
-        seq: List[Node] = [n for n in nodes if n is not None]
-        if not seq:
-            return
-        
-        inner = self._inner
-        outer = self._outer
-
-        # Outer before
-        if outer is not None:
-            yield outer
-
-        for n in seq[:-1]:
-            yield n
-            if inner is not None:
-                yield inner
-        # Last element
-        yield seq[-1]
-        
-        # Outer after
-        if outer is not None:
-            yield outer
-
-    def __iter__(self):
-        yield from self.iter_with_margin(*self._children)
 
     # ---- algebra ----
 
@@ -240,6 +181,9 @@ class Stack(Node, Generic[T]):
     def __len__(self) -> int:
         return len(self._children)
 
+    def __iter__(self):
+        yield from self._children
+
     # ---- layout (vertical) ----
 
     @property
@@ -248,6 +192,90 @@ class Stack(Node, Generic[T]):
         for node in self:
             out.extend(node.lines)
         return out
+
+
+# ========= Stack with margins =========
+
+class Stack(SimpleStack[T]):
+    """
+    Vertical container with optional inner / outer margin nodes.
+
+      inner=None, outer=None -> c0, c1, c2
+      inner=X,   outer=None  -> c0, X, c1, X, c2
+      inner=None, outer=Y    -> Y, c0, c1, c2, Y
+      inner=X,   outer=Y     -> Y, c0, X, c1, X, c2, Y
+    """
+
+    def __init__(
+        self,
+        *children: T,
+        inner: Optional[Node] = None,
+        outer: Optional[Node] = None,
+    ):
+        super().__init__(*children)
+        self._inner: Optional[Node] = None
+        self._outer: Optional[Node] = None
+        self.set_margins(inner=inner, outer=outer)
+
+    @property
+    def inner(self) -> Optional[Node]:
+        return self._inner
+
+    @property
+    def outer(self) -> Optional[Node]:
+        return self._outer
+
+    def set_margins(
+        self,
+        inner: Optional[Node] = None,
+        outer: Optional[Node] = None,
+    ) -> Self:
+        if inner is not None and not isinstance(inner, Node):
+            raise TypeError("inner margin must be a Node")
+        if outer is not None and not isinstance(outer, Node):
+            raise TypeError("outer margin must be a Node")
+
+        self._inner = inner
+        self._outer = outer
+        return self
+
+    def iter_with_margin(self, *nodes: Optional[Node]):
+        """
+        Core margin logic, reused by __iter__ and by subclasses.
+
+        Uses this stack's inner and outer nodes (if not None) and inserts
+        them around and between the given nodes.
+        """
+        # Filter out None nodes first
+        seq: List[Node] = [n for n in nodes if n is not None]
+        if not seq:
+            return
+
+        inner = self._inner
+        outer = self._outer
+
+        # Outer before
+        if outer is not None:
+            yield outer
+
+        if len(seq) > 1:
+            for n in seq[:-1]:
+                yield n
+                if inner is not None:
+                    yield inner
+            # Last element
+            yield seq[-1]
+        else:
+            # Single element
+            yield seq[0]
+
+        # Outer after
+        if outer is not None:
+            yield outer
+
+    def __iter__(self):
+        # Default: margins around and between children
+        yield from self.iter_with_margin(*self._children)
 
 
 # ========= Word-aligned stack =========
@@ -261,14 +289,22 @@ class WordAlignedStack(Stack[T]):
     - Split on whitespace into words.
     Columns are sized by the widest word in each column.
     Only existing words are modified, then each row is joined with spaces.
+
+    `limit` controls the maximum number of columns to align (None = no limit).
     """
 
-    def __init__(self, inner:Optional[Node] = None, outer: Optional[Node] = None, limit:Optional[int]=None):
-        super().__init__(inner, outer)
-        self._limit:Optional[int]=limit
+    def __init__(
+        self,
+        *children: T,
+        inner: Optional[Node] = None,
+        outer: Optional[Node] = None,
+        limit: Optional[int] = None,
+    ):
+        super().__init__(*children, inner=inner, outer=outer)
+        self._limit: Optional[int] = limit
 
     @property
-    def limit(self):
+    def limit(self) -> Optional[int]:
         return self._limit
 
     @property
@@ -283,9 +319,9 @@ class WordAlignedStack(Stack[T]):
             rows.append(words)
 
             for i, w in enumerate(words):
-                lw = len(w)
-                if self._limit is not None and i>=self._limit:
+                if self._limit is not None and i >= self._limit:
                     break
+                lw = len(w)
                 if i == len(widths):
                     widths.append(lw)
                 elif lw > widths[i]:
@@ -297,7 +333,7 @@ class WordAlignedStack(Stack[T]):
         # Pass 2: pad existing words, then join
         out: List[str] = []
         for words in rows:
-            n = min(len(words),len(widths))
+            n = min(len(words), len(widths))
             if n > 1:
                 for i in range(n - 1):
                     w = words[i]
@@ -315,14 +351,19 @@ class WordAlignedStack(Stack[T]):
 class Block(Stack[T]):
     """
     Begin/end wrapper with indented inner content.
+
+    Layout:
+
+      outer, begin, inner+children, end, outer
     """
 
     def __init__(
         self,
+        *children: T,
         begin: Optional[Node] = None,
         end: Optional[Node] = None,
         inner: Optional[Node] = None,
-        outer: Optional[Node] = None
+        outer: Optional[Node] = None,
     ):
         if begin is not None and not isinstance(begin, Node):
             raise TypeError("begin must be a Node or None")
@@ -332,8 +373,14 @@ class Block(Stack[T]):
         self._begin = begin
         self._end = end
 
-        # inner / outer here drive margins between begin, children, end
-        super().__init__(inner,outer)
+        super().__init__(*children, inner=inner, outer=outer)
 
     def __iter__(self):
-        yield from self.iter_with_margin(self._begin,*(IndentedNode(child,1) for child in self.children),self._end)
+        # Build the virtual sequence: begin, indented children, end
+        nodes: List[Optional[Node]] = []
+        nodes.append(self._begin)
+        nodes.extend(IndentedNode(child, 1) for child in self.children)
+        nodes.append(self._end)
+
+        # Let Stack handle insertion of inner/outer margins
+        yield from self.iter_with_margin(*nodes)

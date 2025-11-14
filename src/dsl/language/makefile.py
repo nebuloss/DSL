@@ -12,8 +12,11 @@ MElement = language.Node
 class Makefile(language.Stack[MElement]):
     MARGIN:Optional[language.Node]=language.BlankLine()
 
-    def __init__(self):
-        super().__init__(Makefile.MARGIN,None)
+    def __init__(self,*elements:MElement):
+        super().__init__(*elements,inner=Makefile.MARGIN,outer=None)
+
+class MList(language.SimpleStack[MElement]):
+    pass
 
 # ===== Comments and banners =====
 
@@ -189,12 +192,12 @@ class MDefine(language.Block[MElement]):
         end = language.Text("endef")
 
         super().__init__(
+            *body,
             begin=begin,
             end=end,
             inner=Makefile.MARGIN,
             outer=None
         )
-        self.extend(body)
 
 
 # ===== Commands =====
@@ -364,7 +367,6 @@ class MInclude(language.Text):
 
         line = "include " + " ".join(parts)
         super().__init__(line)
-
 
 class MExprLine(language.Text):
     """

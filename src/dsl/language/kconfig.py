@@ -14,8 +14,11 @@ KElement = language.Node
 class KConfig(language.Stack[KElement]):
     MARGIN:Optional[language.Node]=language.BlankLine()
 
-    def __init__(self):
-        super().__init__(inner=self.MARGIN, outer=None)
+    def __init__(self,*elements:KElement):
+        super().__init__(*elements,inner=self.MARGIN, outer=None)
+
+class KList(language.SimpleStack[KElement]):
+    pass
 
 class KStringKey(language.Text):
     """
@@ -294,10 +297,6 @@ class KSource(KStringKey):
             path = self._normalize_vars(path)
 
         super().__init__("source", path)
-
-class KSourceList(language.Stack[KSource]):
-    def __init__(self):
-        super().__init__(KConfig.MARGIN, None)
 
 class KComment(KStringKey):
     def __init__(self, comment: str):
