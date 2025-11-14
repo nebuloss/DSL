@@ -10,16 +10,16 @@ from dsl.variable.makefile import MExpr, MVar
 MElement = language.Node
 
 class Makefile(language.Stack[MElement]):
-    def __init__(self,margin=1):
-        super().__init__(language.BlankLine(margin), True, False)
+    MARGIN:Optional[language.Node]=language.BlankLine()
+
+    def __init__(self):
+        super().__init__(Makefile.MARGIN,None)
 
 # ===== Comments and banners =====
 
 class MComment(language.Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
-
-MBlankLine=language.BlankLine
 
 # ===== Assignments (LHS is a var) =====
 
@@ -86,27 +86,21 @@ class MIfExpr(language.Block[MElement]):
         self,
         header: str,
         *body: MElement,
-        margin: Optional[language.Node] = None,
-        inner: bool = True,
-        outer: bool = False,
     ):
         super().__init__(
             begin=language.Text(header.strip()),
             end=language.Text("endif"),
-            margin=margin,
-            inner=inner,
-            outer=outer,
+            inner=Makefile.MARGIN,
+            outer=None
         )
 
         self._elif: language.Stack["MIfExpr"] = language.Stack(
-            margin=margin,
-            inner=inner,
-            outer=outer,
+            inner=Makefile.MARGIN,
+            outer=None
         )
         self._else: language.Stack[MElement] = language.Stack(
-            margin=margin,
-            inner=inner,
-            outer=outer,
+            inner=Makefile.MARGIN,
+            outer=None
         )
 
         self.extend(body)
@@ -197,9 +191,8 @@ class MDefine(language.Block[MElement]):
         super().__init__(
             begin=begin,
             end=end,
-            margin=None,
-            inner=False,
-            outer=False,
+            inner=Makefile.MARGIN,
+            outer=None
         )
         self.extend(body)
 
@@ -311,9 +304,8 @@ class MRule(language.Block[MCommand]):
         super().__init__(
             begin=language.Text(header),
             end=None,
-            margin=None,
-            inner=True,
-            outer=False,
+            inner=None,
+            outer=None
         )
 
 

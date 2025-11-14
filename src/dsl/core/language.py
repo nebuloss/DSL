@@ -8,7 +8,22 @@ from typing import Generic, Iterable, List, Optional, Self, TypeVar, get_args
 # ========= Core node =========
 
 class Node(ABC):
+    @property
+    @abstractmethod
+    def lines(self) -> List[str]:
+        raise NotImplementedError
+
+    def __str__(self) -> str:
+        return "\n".join(self.lines)
+    
+class IndentedNode(Node):
     TAB = "\t"
+
+    def __init__(self, child: Node, level: int = 1):
+        if not isinstance(child, Node):
+            raise TypeError("child must be a Node")
+        self._child = child
+        self._level = max(0, int(level))
 
     @classmethod
     def _indent_line(cls, line: str, level: int) -> str:
@@ -23,13 +38,16 @@ class Node(ABC):
         return [cls._indent_line(line, level) for line in lines]
 
     @property
-    @abstractmethod
+    def child(self):
+        return self._child
+    
+    @property
+    def level(self):
+        return self._level
+
+    @property
     def lines(self) -> List[str]:
-        raise NotImplementedError
-
-    def __str__(self) -> str:
-        return "\n".join(self.lines)
-
+        return self.indent(self._level, self._child.lines)
 
 # ========= Leaf nodes =========
 
@@ -69,18 +87,13 @@ class Stack(Node, Generic[T]):
 
     def __init__(
         self,
-        margin: Optional[Node] = None,
-        inner: bool = True,
-        outer: bool = False,
+        inner: Optional[Node] = None,
+        outer: Optional[Node] = None
     ):
-        if margin is not None and not isinstance(margin, Node):
-            raise TypeError("margin must be a Node or None")
 
         self._children: List[T] = []
-        self._margin: Optional[Node] = margin
-        self._inner: bool = bool(inner)
-        self._outer: bool = bool(outer)
         self._child_type: type = self._resolve_child_type()
+        self.set_margins(inner,outer)
 
     # ---- typing helper ----
 
@@ -104,13 +117,14 @@ class Stack(Node, Generic[T]):
 
     # ---- configuration ----
 
-    @property
-    def margin(self) -> Optional[Node]:
-        return self._margin
+    def set_margins(self, inner: Optional[Node]=None, outer:Optional[Node] = None) -> Self:
+        if inner is not None and not isinstance(inner,Node):
+            raise TypeError("inner margin must be a Node")
+        if outer is not None and not isinstance(outer,Node):
+            raise TypeError("outer margin must be a Node")
 
-    def set_margins(self, inner: bool = True, outer: bool = False) -> Self:
-        self._inner = bool(inner)
-        self._outer = bool(outer)
+        self._inner = inner
+        self._outer = outer
         return self
 
     @property
@@ -139,33 +153,45 @@ class Stack(Node, Generic[T]):
             self.append(c)
         return self
 
-    # ---- iteration with margins ----
+     # ---- margin helper ----
+
+    def iter_with_margin(self, *nodes: Optional[Node]):
+        """
+        Core margin logic, reused by __iter__ and by subclasses.
+
+        Uses this stack's inner and outer nodes (if not None) and inserts
+        them around and between the given nodes:
+
+        inner=None, outer=None -> c0, c1, c2
+        inner=X,   outer=None  -> c0, X, c1, X, c2
+        inner=None, outer=Y    -> Y, c0, c1, c2, Y
+        inner=X,   outer=Y     -> Y, c0, X, c1, X, c2, Y
+        """
+        # Filter out None nodes first
+        seq: List[Node] = [n for n in nodes if n is not None]
+        if not seq:
+            return
+        
+        inner = self._inner
+        outer = self._outer
+
+        # Outer before
+        if outer is not None:
+            yield outer
+
+        for n in seq[:-1]:
+            yield n
+            if inner is not None:
+                yield inner
+        # Last element
+        yield seq[-1]
+        
+        # Outer after
+        if outer is not None:
+            yield outer
 
     def __iter__(self):
-        children = self._children
-        if not children:
-            return
-
-        m = self._margin
-        use_m = m is not None
-
-        it = iter(children)
-        first = next(it, None)
-        if first is None:
-            return
-
-        if self._outer and use_m:
-            yield m
-
-        yield first
-
-        for child in it:
-            if self._inner and use_m:
-                yield m
-            yield child
-
-        if self._outer and use_m:
-            yield m
+        yield from self.iter_with_margin(*self._children)
 
     # ---- algebra ----
 
@@ -237,8 +263,8 @@ class WordAlignedStack(Stack[T]):
     Only existing words are modified, then each row is joined with spaces.
     """
 
-    def __init__(self, margin = None, inner = True, outer = False, limit:Optional[int]=None):
-        super().__init__(margin, inner, outer)
+    def __init__(self, inner:Optional[Node] = None, outer: Optional[Node] = None, limit:Optional[int]=None):
+        super().__init__(inner, outer)
         self._limit:Optional[int]=limit
 
     @property
@@ -295,9 +321,8 @@ class Block(Stack[T]):
         self,
         begin: Optional[Node] = None,
         end: Optional[Node] = None,
-        margin: Optional[Node] = None,
-        inner: bool = True,
-        outer: bool = True,
+        inner: Optional[Node] = None,
+        outer: Optional[Node] = None
     ):
         if begin is not None and not isinstance(begin, Node):
             raise TypeError("begin must be a Node or None")
@@ -306,20 +331,9 @@ class Block(Stack[T]):
 
         self._begin = begin
         self._end = end
-        super().__init__(margin=margin, inner=inner, outer=outer)
 
-    @property
-    def lines(self) -> List[str]:
-        out: List[str] = []
+        # inner / outer here drive margins between begin, children, end
+        super().__init__(inner,outer)
 
-        if self._begin is not None:
-            out.extend(self._begin.lines)
-
-        inner_lines = super().lines
-        if inner_lines:
-            out.extend(self.indent(1, inner_lines))
-
-        if self._end is not None:
-            out.extend(self._end.lines)
-
-        return out
+    def __iter__(self):
+        yield from self.iter_with_margin(self._begin,*(IndentedNode(child,1) for child in self.children),self._end)

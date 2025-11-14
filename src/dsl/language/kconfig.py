@@ -12,8 +12,10 @@ from dsl.variable import kconfig
 KElement = language.Node
 
 class KConfig(language.Stack[KElement]):
-    def __init__(self,margin=1):
-        super().__init__(language.BlankLine(margin), True, False)
+    MARGIN:Optional[language.Node]=language.BlankLine()
+
+    def __init__(self):
+        super().__init__(inner=self.MARGIN, outer=None)
 
 class KStringKey(language.Text):
     """
@@ -60,7 +62,7 @@ class KTypedConfig(language.Block[KElement], ABC):
     ):
         keyword = "menuconfig" if menuconfig else "config"
         begin = language.Text(f"{keyword} {name}")
-        super().__init__(begin=begin, end=None, margin=language.BlankLine(), inner=False, outer=True)
+        super().__init__(begin=begin, end=None, inner=None, outer=None)
 
         if prompt is None:
             self.append(language.Text(type_keyword))
@@ -196,9 +198,8 @@ class KBlock(language.Block[KElement]):
         super().__init__(
             begin=begin,
             end=end,
-            margin=language.BlankLine(),
-            inner=True,
-            outer=True,
+            inner=KConfig.MARGIN,
+            outer=None
         )
         self.extend(children)
 
@@ -252,9 +253,8 @@ class KChoice(KBlock):
         header = language.Block(
                 begin=language.Text("choice"),
                 end=None,
-                margin=None,
-                inner=False,
-                outer=False,
+                inner=None,
+                outer=None
             ).extend((
                 KStringKey("prompt", prompt),
                 language.Text(type_keyword)
@@ -295,6 +295,9 @@ class KSource(KStringKey):
 
         super().__init__("source", path)
 
+class KSourceList(language.Stack[KSource]):
+    def __init__(self):
+        super().__init__(KConfig.MARGIN, None)
 
 class KComment(KStringKey):
     def __init__(self, comment: str):
