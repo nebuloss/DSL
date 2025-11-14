@@ -38,7 +38,10 @@ class MConst(VarConst[MakeOps]):
 class MVar(VarName[MakeOps]):
     def __str__(self) -> str:
         return f"$({self.name})"
-
+    
+class MArg(MVar):
+    def __init__(self, n:int):
+        super().__init__(str(n))
 
 class MAdd(VarAdd[MakeOps]):
     """
