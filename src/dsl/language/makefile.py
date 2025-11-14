@@ -5,11 +5,11 @@ import re
 from typing import List, Literal, Optional, Union
 
 from dsl.core import language
-from dsl.variable.makefile import MExpr, MVar, MConst
+from dsl.variable.makefile import MExpr, MVar
 
 MElement = language.Node
 
-class Makefile(language.Stack):
+class Makefile(language.Stack[MElement]):
     def __init__(self):
         super().__init__(language.BlankLine(), True, False)
 

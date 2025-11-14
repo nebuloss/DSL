@@ -11,7 +11,7 @@ from dsl.variable import kconfig
 
 KElement = language.Node
 
-class KConfig(language.Stack):
+class KConfig(language.Stack[KElement]):
     def __init__(self):
         super().__init__(language.BlankLine(), True, False)
 
@@ -36,7 +36,7 @@ class KStringKey(language.Text):
 
 # ===== Typed options: config / menuconfig =====
 
-class KTypedConfig(language.Block, ABC):
+class KTypedConfig(language.Block[KElement], ABC):
     """
     Generic typed symbol:
 
@@ -173,7 +173,7 @@ class KMenuconfig(KBool):
 
 # ===== Block constructs: if / menu =====
 
-class KBlock(language.Block):
+class KBlock(language.Block[KElement]):
     """
     Helper for simple:
 
