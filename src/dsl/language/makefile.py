@@ -10,8 +10,8 @@ from dsl.variable.makefile import MExpr, MVar
 MElement = language.Node
 
 class Makefile(language.Stack[MElement]):
-    def __init__(self):
-        super().__init__(language.BlankLine(), True, False)
+    def __init__(self,margin=1):
+        super().__init__(language.BlankLine(margin), True, False)
 
 # ===== Comments and banners =====
 

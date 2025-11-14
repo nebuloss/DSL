@@ -12,8 +12,8 @@ from dsl.variable import kconfig
 KElement = language.Node
 
 class KConfig(language.Stack[KElement]):
-    def __init__(self):
-        super().__init__(language.BlankLine(), True, False)
+    def __init__(self,margin=1):
+        super().__init__(language.BlankLine(margin), True, False)
 
 class KStringKey(language.Text):
     """
@@ -60,7 +60,7 @@ class KTypedConfig(language.Block[KElement], ABC):
     ):
         keyword = "menuconfig" if menuconfig else "config"
         begin = language.Text(f"{keyword} {name}")
-        super().__init__(begin=begin, end=None, margin=None, inner=False, outer=False)
+        super().__init__(begin=begin, end=None, margin=language.BlankLine(), inner=False, outer=True)
 
         if prompt is None:
             self.append(language.Text(type_keyword))
