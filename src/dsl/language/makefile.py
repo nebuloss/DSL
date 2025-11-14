@@ -391,3 +391,19 @@ class MInclude(language.Text):
         line = "include " + " ".join(parts)
         super().__init__(line)
 
+
+class MExprLine(language.Text):
+    """
+    Wrap a Make expression so it can live as a top level Makefile element.
+
+    Example:
+        mf.append(MExprLine(M.eval(M.Const("include other.mk"))))
+
+    Renders as:
+        $(eval include other.mk)
+    """
+
+    def __init__(self, expr: MExpr):
+        if not isinstance(expr, MExpr):
+            raise TypeError(f"MExprLine expects an MExpr, got {type(expr).__name__}")
+        super().__init__(str(expr))

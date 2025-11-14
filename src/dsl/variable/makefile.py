@@ -116,7 +116,7 @@ class MOr(VarOr[MakeOps]):
 
 # ---------- Shared base for Make "functions" ----------
 
-class MFunc(MExpr):
+class MFunc(VarExpr[MakeOps]):
     """
     Base class for Make function-like expressions:
       $(name arg1,arg2,...)
