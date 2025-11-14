@@ -34,7 +34,6 @@ class MConst(VarConst[MakeOps]):
         # Any other constant prints as-is (non-empty strings are truthy in $(if ...))
         return str(self.val)
 
-
 class MVar(VarName[MakeOps]):
     def __str__(self) -> str:
         return f"$({self.name})"

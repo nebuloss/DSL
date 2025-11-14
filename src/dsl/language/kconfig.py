@@ -36,6 +36,9 @@ class KStringKey(language.Text):
         return s.replace('"', r'\"')
 
     def __init__(self, keyword: str, value: str):
+        if not isinstance(value,str):
+            raise TypeError("Expecting string value")
+        
         super().__init__(f'{keyword} "{self.escape(value)}"')
 
 
@@ -278,24 +281,9 @@ class KSource(KStringKey):
 
     Examples:
       KSource("arch/Kconfig")
-      KSource("boards/$(BOARD)/Kconfig", normalize_vars=True)
-        -> source "boards/$BOARD/Kconfig"
     """
 
-    _VAR_RE = re.compile(r"\$\((\w+)\)")
-
-    @classmethod
-    def _normalize_vars(cls, s: str) -> str:
-        """Convert Make-style $(FOO) into Kconfig-style $FOO."""
-        return cls._VAR_RE.sub(r"$\1", s)
-
-    def __init__(self, path: str, normalize_vars: bool = False):
-        if not isinstance(path, str):
-            raise TypeError("source path must be a string")
-
-        if normalize_vars:
-            path = self._normalize_vars(path)
-
+    def __init__(self, path: str):
         super().__init__("source", path)
 
 class KComment(KStringKey):

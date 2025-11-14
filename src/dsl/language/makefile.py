@@ -327,26 +327,17 @@ class MInclude(language.Text):
     """
     Makefile include line.
 
-    - Optionally converts Kconfig-style $FOO into Make-style $(FOO)
     - Escapes spaces in each path (foo bar -> foo\ bar)
     - Supports multiple paths:
         MInclude("a.mk", "b mk") -> include a.mk b\ mk
     """
-
-    _VAR_RE = re.compile(r"\$(\w+)")
-
-    @classmethod
-    def _normalize_vars(cls, s: str) -> str:
-        """Convert Kconfig-style $FOO into Make-style $(FOO)."""
-        return cls._VAR_RE.sub(r"$(\1)", s)
-
     @staticmethod
     def _escape_spaces(path: str) -> str:
         """Escape spaces for use in a Makefile include."""
         # Make treats backslash-space as a single space character in the filename.
         return path.replace(" ", r"\ ")
 
-    def __init__(self, *paths: str, normalize_vars: bool = False):
+    def __init__(self, *paths: str):
         if not paths:
             raise ValueError("MInclude requires at least one path")
 
@@ -355,11 +346,9 @@ class MInclude(language.Text):
         for p in paths:
             if not isinstance(p, str):
                 raise TypeError("include paths must be strings")
-            s = p
-            if normalize_vars:
-                s = self._normalize_vars(s)
-            s = self._escape_spaces(s)
-            parts.append(s)
+            
+            p = self._escape_spaces(p)
+            parts.append(p)
 
         line = "include " + " ".join(parts)
         super().__init__(line)
