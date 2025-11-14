@@ -48,25 +48,21 @@ class MSet(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "=")
 
-
 class MSetImmediate(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, ":=")
-
 
 class MSetDefault(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "?=")
 
-
 class MAppend(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "+=")
 
-
 class MAssignments(language.WordAlignedStack[MAssignment]):
-    def __init__(self):
-        super().__init__(limit=2)
+    def __init__(self,*assignments:MAssignment):
+        super().__init__(*assignments,limit=2)
 
 # ===== Conditionals (Makefile syntax) =====
 
