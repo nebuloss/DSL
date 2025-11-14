@@ -19,24 +19,6 @@ class MComment(language.Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
-
-class MBanner(language.Node):
-    def __init__(self, title: str, width: int = 60, char: str = "#"):
-        self._title = title.strip()
-        self._char = char[0] if char else "#"
-        self._width = max(width, len(self._title) + 4)
-
-    @property
-    def lines(self) -> List[str]:
-        bar = self._char * self._width
-        if not self._title:
-            return [bar]
-        mid = f"{self._char} {self._title}"
-        if len(mid) < self._width:
-            mid += " " * (self._width - len(mid))
-        return [bar, self._char, mid, self._char, bar]
-
-
 MBlankLine=language.BlankLine
 
 # ===== Assignments (LHS is a var) =====
