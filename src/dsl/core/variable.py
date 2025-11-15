@@ -1,5 +1,3 @@
-# core/var.py
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -27,14 +25,22 @@ class LanguageOps:
     """
     Per-language class table. Languages must bind:
       Const, Name, Not, And, Or
+
+    Optional leaves:
+      Null
+
     Optional binary ops:
       Add, Sub, Mul, Div
     """
+
     Const: Type["VarConst"]
     Name:  Type["VarName"]
     Not:   Type["VarNot"]
     And:   Type["VarAnd"]
     Or:    Type["VarOr"]
+
+    # Optional Null node (singleton per language)
+    Null: Optional[Type["VarNull"]] = None
 
     # Optional operators. If missing, using that operator raises TypeError.
     Add: Optional[Type["VarAdd"]] = None
@@ -66,82 +72,110 @@ class VarExpr(Generic[OpsT], ABC):
         cls,
         lhs: "VarExpr",
         rhs: "VarExpr",
-        *,
-        ops_attr: str,
+        op_cls: Optional[Type["VarBinaryOp"]],
     ) -> "VarExpr":
         if not isinstance(rhs, VarExpr):
             return NotImplemented  # let Python try reflected op
 
         lhs._check_same_ops(rhs)
+        ops = lhs.ops
 
-        OpCls:Type["VarConst"] = getattr(lhs.ops, ops_attr, None)
-        if OpCls is None:
-            op_map = {"Add": "+", "Sub": "-", "Mul": "*", "Div": "/", "And": "&", "Or": "|"}
-            token = op_map.get(ops_attr, ops_attr)
-            raise TypeError(f"This language does not define {ops_attr} for operator '{token}'")
+        # Central Null handling for all binary operators
+        null_cls = ops.Null
+        if null_cls is not None:
+            lhs_is_null = isinstance(lhs, null_cls)
+            rhs_is_null = isinstance(rhs, null_cls)
 
-        return OpCls(lhs, rhs).simplify()
+            if lhs_is_null and rhs_is_null:
+                # Collapse Null op Null to the singleton
+                return null_cls()
+            if lhs_is_null:
+                # Null op X -> simplified X
+                return rhs.simplify()
+            if rhs_is_null:
+                # X op Null -> simplified X
+                return lhs.simplify()
+
+        if op_cls is None:
+            # Map the operator class to a printable token for the error
+            op_map = {
+                ops.And: "&",
+                ops.Or: "|",
+                ops.Add: "+",
+                ops.Sub: "-",
+                ops.Mul: "*",
+                ops.Div: "/",
+            }
+            token = op_map.get(op_cls, "?")
+            raise TypeError(f"This language does not define operator '{token}'")
+
+        return op_cls(lhs.simplify(), rhs.simplify()).simplify()  # type: ignore[call-arg]
 
     # ---------- Python operator methods ----------
 
     # Boolean logic via bitwise ops
     def __or__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Or")
+        return type(self)._dispatch_binop(self, other, self.ops.Or)
 
     def __ror__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="Or")
+        return type(self)._dispatch_binop(other, self, self.ops.Or)
 
     def __ior__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Or")
+        return type(self)._dispatch_binop(self, other, self.ops.Or)
 
     def __and__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="And")
+        return type(self)._dispatch_binop(self, other, self.ops.And)
 
     def __rand__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="And")
+        return type(self)._dispatch_binop(other, self, self.ops.And)
 
     def __iand__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="And")
+        return type(self)._dispatch_binop(self, other, self.ops.And)
 
     def __invert__(self) -> "VarExpr":
-        return self.ops.Not(self).simplify()
+        # Central Null handling for unary not
+        ops = self.ops
+        null_cls = ops.Null
+        if null_cls is not None and isinstance(self, null_cls):
+            return self
+        return ops.Not(self.simplify()).simplify()
 
     # Arithmetic and concat (language optional)
     def __add__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Add")
+        return type(self)._dispatch_binop(self, other, self.ops.Add)
 
     def __radd__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="Add")
+        return type(self)._dispatch_binop(other, self, self.ops.Add)
 
     def __iadd__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Add")
+        return type(self)._dispatch_binop(self, other, self.ops.Add)
 
     def __sub__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Sub")
+        return type(self)._dispatch_binop(self, other, self.ops.Sub)
 
     def __rsub__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="Sub")
+        return type(self)._dispatch_binop(other, self, self.ops.Sub)
 
     def __isub__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Sub")
+        return type(self)._dispatch_binop(self, other, self.ops.Sub)
 
     def __mul__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Mul")
+        return type(self)._dispatch_binop(self, other, self.ops.Mul)
 
     def __rmul__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="Mul")
+        return type(self)._dispatch_binop(other, self, self.ops.Mul)
 
     def __imul__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Mul")
+        return type(self)._dispatch_binop(self, other, self.ops.Mul)
 
     def __truediv__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Div")
+        return type(self)._dispatch_binop(self, other, self.ops.Div)
 
     def __rtruediv__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(other, self, ops_attr="Div")
+        return type(self)._dispatch_binop(other, self, self.ops.Div)
 
     def __itruediv__(self, other: "VarExpr") -> "VarExpr":
-        return type(self)._dispatch_binop(self, other, ops_attr="Div")
+        return type(self)._dispatch_binop(self, other, self.ops.Div)
 
     # ---------- resolve LanguageOps from generics ----------
 
@@ -344,12 +378,50 @@ class VarName(VarExpr[OpsT], ABC):
 
     def __len__(self) -> int:
         return 1
-    
+
     def add_prefix(self, prefix: str) -> Self:
         return type(self)(f"{prefix}_{self.name}")
 
     def add_suffix(self, suffix: str) -> Self:
         return type(self)(f"{self.name}_{suffix}")
+
+
+class VarNull(VarExpr[OpsT], ABC):
+    """
+    Singleton sentinel node for "no expression".
+
+    Concrete languages must subclass this and implement __str__.
+    Each concrete VarNull subclass is a singleton.
+    """
+
+    _instance: ClassVar[Optional["VarNull[OpsT]"]] = None
+
+    def __new__(cls) -> "VarNull[OpsT]":
+        if cls is VarNull:
+            raise TypeError("VarNull must be subclassed per language")
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    @classmethod
+    def isNull(cls, expr: "VarExpr[OpsT]") -> bool:
+        return isinstance(expr, cls)
+
+    def key(self) -> Tuple[Any, ...]:
+        return ("null",)
+
+    def simplify(self) -> "VarExpr[OpsT]":
+        return self
+
+    def __len__(self) -> int:
+        return 0
+
+    @abstractmethod
+    def __str__(self) -> str:
+        ...
 
 
 # =====================================================================
@@ -363,7 +435,7 @@ class VarNot(VarUnaryOp[OpsT], ABC):
         return ("not", self.child.key())
 
     def simplify(self) -> "VarExpr[OpsT]":
-        c = self.child.simplify()
+        c = self.child
 
         if self.ops.Const.isTrue(c):
             return self.ops.Const.false()
@@ -394,8 +466,8 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         return ("and", tuple(keys))
 
     def simplify(self) -> "VarExpr[OpsT]":
-        left = self.left.simplify()
-        right = self.right.simplify()
+        left = self.left
+        right = self.right
 
         if self.ops.Const.isFalse(left) or self.ops.Const.isFalse(right):
             return self.ops.Const.false()
@@ -508,8 +580,8 @@ class VarOr(VarBinaryOp[OpsT], ABC):
         return ("or", tuple(keys))
 
     def simplify(self) -> "VarExpr[OpsT]":
-        left = self.left.simplify()
-        right = self.right.simplify()
+        left = self.left
+        right = self.right
 
         if self.ops.Const.isTrue(left) or self.ops.Const.isTrue(right):
             return self.ops.Const.true()
@@ -619,35 +691,39 @@ class VarOr(VarBinaryOp[OpsT], ABC):
 
 class VarAdd(VarBinaryOp[OpsT], ABC):
     PREC: ClassVar[int] = 4
+
     def key(self) -> Tuple[Any, ...]:
         return ("add", self.left.key(), self.right.key())
-    
+
     def simplify(self) -> "VarExpr[OpsT]":
-        return type(self)(self.left.simplify(), self.right.simplify())  # type: ignore[call-arg]
+        return self  # type: ignore[call-arg]
 
 
 class VarSub(VarBinaryOp[OpsT], ABC):
     PREC: ClassVar[int] = 4
+
     def key(self) -> Tuple[Any, ...]:
         return ("sub", self.left.key(), self.right.key())
-    
+
     def simplify(self) -> "VarExpr[OpsT]":
-        return type(self)(self.left.simplify(), self.right.simplify())  # type: ignore[call-arg]
+        return self  # type: ignore[call-arg]
 
 
 class VarMul(VarBinaryOp[OpsT], ABC):
     PREC: ClassVar[int] = 5
+
     def key(self) -> Tuple[Any, ...]:
         return ("mul", self.left.key(), self.right.key())
-    
+
     def simplify(self) -> "VarExpr[OpsT]":
-        return type(self)(self.left.simplify(), self.right.simplify())  # type: ignore[call-arg]
+        return self  # type: ignore[call-arg]
 
 
 class VarDiv(VarBinaryOp[OpsT], ABC):
     PREC: ClassVar[int] = 5
+
     def key(self) -> Tuple[Any, ...]:
         return ("div", self.left.key(), self.right.key())
-    
+
     def simplify(self) -> "VarExpr[OpsT]":
-        return type(self)(self.left.simplify(), self.right.simplify())  # type: ignore[call-arg]
+        return self

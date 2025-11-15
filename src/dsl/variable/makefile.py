@@ -9,6 +9,7 @@ from dsl.core.variable import (
     VarName,
     VarNot,
     VarAnd,
+    VarNull,
     VarOr,
     VarAdd,
 )
@@ -23,6 +24,9 @@ class MakeOps(LanguageOps):
 
 MExpr = VarExpr
 
+class MNull(VarNull[MakeOps]):
+    def __str__(self):
+        return ""
 
 class MConst(VarConst[MakeOps]):
     def __str__(self) -> str:
@@ -64,8 +68,8 @@ class MAdd(VarAdd[MakeOps]):
         return f"{ls} {rs}"
 
     def simplify(self) -> MExpr:
-        left = self.left.simplify()
-        right = self.right.simplify()
+        left = self.left
+        right = self.right
 
         if isinstance(left, MConst) and isinstance(right, MConst):
             return MConst(self._join(left, right))
@@ -240,6 +244,7 @@ MakeOps.Not = MNot
 MakeOps.And = MAnd
 MakeOps.Or = MOr
 MakeOps.Add = MAdd
+MakeOps.Null= MNull
 # MakeOps.Sub/Mul/Div remain None
 
 
@@ -252,7 +257,7 @@ class M:
         M.Var, M.Const, M.If, M.Call, M.Eval, M.Shell, M.Foreach
         and helper constructors: M.var(), M.const(), M.all(), M.any(), ...
     """
-    If = MIf
+    null=MNull()
 
     @staticmethod
     def const(val: Any) -> MConst:

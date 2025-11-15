@@ -327,9 +327,9 @@ class MInclude(language.Text):
     """
     Makefile include line.
 
-    - Escapes spaces in each path (foo bar -> foo\ bar)
+    - Escapes spaces in each path (foo bar -> foo\\ bar)
     - Supports multiple paths:
-        MInclude("a.mk", "b mk") -> include a.mk b\ mk
+        MInclude("a.mk", "b mk") -> include a.mk b\\ mk
     """
     @staticmethod
     def _escape_spaces(path: str) -> str:
