@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional, Union
 
-from dsl import Node,Stack,SimpleStack,BlankLine,Text,WordAlignedStack,Block,VarExpr
+from dsl import Node,Stack,SimpleStack,BlankLine,Text,WordAlignedStack,Block
 from .var import MVar,MExpr
 
 MElement = Node
@@ -244,7 +244,7 @@ class MShellCommand(MCommand):
 
     @classmethod
     def _format_arg(cls, arg: Union[str, MExpr]) -> str:
-        if isinstance(arg, VarExpr):
+        if isinstance(arg, MExpr):
             # Insert make expression as-is, e.g. $(CC) or $(CFLAGS)
             return str(arg)
         if isinstance(arg, str):

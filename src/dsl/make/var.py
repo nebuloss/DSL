@@ -22,7 +22,7 @@ class MakeOps(LanguageOps):
 
 # ---------- Core Makefile expression types ----------
 
-MExpr = VarExpr[MakeOps]
+MExpr = VarExpr
 
 class MNull(VarNull[MakeOps]):
     def __str__(self):

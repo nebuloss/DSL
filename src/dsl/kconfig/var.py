@@ -24,7 +24,7 @@ class KconfigOps(LanguageOps):
 
 # ---------- Concrete Kconfig nodes ----------
 
-KExpr = VarExpr[KconfigOps]
+KExpr = VarExpr
 
 
 class KConst(VarConst[KconfigOps]):
