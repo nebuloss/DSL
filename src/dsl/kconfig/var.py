@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional, Tuple, Union
 
-from dsl.core.variable import (
+from dsl import (
     LanguageOps,
     VarExpr,
     VarConst,
@@ -201,68 +201,3 @@ KconfigOps.Not = KNot
 KconfigOps.And = KAnd
 KconfigOps.Or = KOr
 # KconfigOps.Add/Sub/Mul/Div remain None (no arithmetic)
-
-
-# ---------- Convenience namespace (no free functions) ----------
-
-class K:
-    """
-    Namespace for Kconfig helpers, instead of free functions.
-    Usage:
-        K.const(1)
-        K.var("FOO")
-        K.true()
-        K.all(K.var("A"), K.var("B"))
-    """
-
-    # Basic constructors
-
-    @staticmethod
-    def const(val: Any) -> KConst:
-        return KConst(val)
-
-    @staticmethod
-    def var(name: str) -> KVar:
-        return KVar(name)
-
-    @staticmethod
-    def true() -> KConst:
-        return KConst.true()
-
-    @staticmethod
-    def false() -> KConst:
-        return KConst.false()
-
-    # Boolean combinators
-
-    @staticmethod
-    def all(*vars: KVar) -> KExpr:
-        result: VarExpr[KconfigOps] = KConst.true()
-        for var in vars:
-            result &= var
-        return result  # type: ignore[return-value]
-
-    @staticmethod
-    def any(*vars: KVar) -> KExpr:
-        result: VarExpr[KconfigOps] = KConst.false()
-        for var in vars:
-            result |= var
-        return result  # type: ignore[return-value]
-
-    # Typed constant helpers
-
-    @staticmethod
-    def bool(val: Union[bool, str, int]) -> KConst:
-        return KConst.bool(val)
-
-    @staticmethod
-    def string(val: Any) -> KConst:
-        return KConst.string(val)
-
-    @staticmethod
-    def int(val: Union[int, str, bool]) -> KConst:
-        return KConst.int(val)
-
-    @staticmethod
-    def hex(val: Union[int, str, bool]) -> KConst:
-        return KConst.hex(val)

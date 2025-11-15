@@ -4,29 +4,29 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional, Union
 
-from dsl.core import language
-from dsl.variable.makefile import MExpr, MVar
+from dsl import Node,Stack,SimpleStack,BlankLine,Text,WordAlignedStack,Block,VarExpr
+from .var import MVar,MExpr
 
-MElement = language.Node
+MElement = Node
 
-class Makefile(language.Stack[MElement]):
-    MARGIN:Optional[language.Node]=language.BlankLine()
+class Makefile(Stack[MElement]):
+    MARGIN:Optional[Node]=BlankLine()
 
     def __init__(self,*elements:MElement):
         super().__init__(*elements,inner=Makefile.MARGIN,outer=None)
 
-class MList(language.SimpleStack[MElement]):
+class MList(SimpleStack[MElement]):
     pass
 
 # ===== Comments and banners =====
 
-class MComment(language.Text):
+class MComment(Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 # ===== Assignments (LHS is a var) =====
 
-class MAssignment(language.Text):
+class MAssignment(Text):
     """
     VAR op VALUE
 
@@ -60,13 +60,13 @@ class MAppend(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "+=")
 
-class MAssignments(language.WordAlignedStack[MAssignment]):
+class MAssignments(WordAlignedStack[MAssignment]):
     def __init__(self,*assignments:MAssignment):
         super().__init__(*assignments,limit=2)
 
 # ===== Conditionals (Makefile syntax) =====
 
-class MIfExpr(language.Block[MElement]):
+class MIfExpr(Block[MElement]):
     """
     Block with else-if chaining and else body.
 
@@ -87,17 +87,17 @@ class MIfExpr(language.Block[MElement]):
         *body: MElement,
     ):
         super().__init__(
-            begin=language.Text(header.strip()),
-            end=language.Text("endif"),
+            begin=Text(header.strip()),
+            end=Text("endif"),
             inner=Makefile.MARGIN,
             outer=None
         )
 
-        self._elif: language.Stack["MIfExpr"] = language.Stack(
+        self._elif: Stack["MIfExpr"] = Stack(
             inner=Makefile.MARGIN,
             outer=None
         )
-        self._else: language.Stack[MElement] = language.Stack(
+        self._else: Stack[MElement] = Stack(
             inner=Makefile.MARGIN,
             outer=None
         )
@@ -105,12 +105,12 @@ class MIfExpr(language.Block[MElement]):
         self.extend(body)
 
     @property
-    def Elif(self) -> language.Stack["MIfExpr"]:
+    def Elif(self) -> Stack["MIfExpr"]:
         """Chained else-if blocks."""
         return self._elif
 
     @property
-    def Else(self) -> language.Stack[MElement]:
+    def Else(self) -> Stack[MElement]:
         """Final else body."""
         return self._else
 
@@ -134,15 +134,10 @@ class MIfExpr(language.Block[MElement]):
         else_lines = self._else.lines
         if else_lines:
             out.append("else")
-            out.extend(language.Node.indent(1, else_lines))
+            out.extend(Node.indent(1, else_lines))
 
         out.append(endif_line)
         return out
-
-class MIf(MIfExpr):
-    def __init__(self, condition: MExpr, *body: MElement, **kw):
-        super().__init__(f"if {str(condition).strip()}", *body, **kw)
-
 
 class MIfDef(MIfExpr):
     def __init__(self, var: MVar, *body: MElement, **kw):
@@ -166,7 +161,7 @@ class MIfNEq(MIfExpr):
 
 # ===== define / endef =====
 
-class MDefine(language.Block[MElement]):
+class MDefine(Block[MElement]):
     """
     Multi-line define / endef macro:
 
@@ -184,8 +179,8 @@ class MDefine(language.Block[MElement]):
         if not macro:
             raise ValueError("Macro name cannot be empty")
 
-        begin = language.Text(f"define {macro}")
-        end = language.Text("endef")
+        begin = Text(f"define {macro}")
+        end = Text("endef")
 
         super().__init__(
             *body,
@@ -198,7 +193,7 @@ class MDefine(language.Block[MElement]):
 
 # ===== Commands =====
 
-class MCommand(language.Text):
+class MCommand(Text):
     """
     Make recipe command line.
 
@@ -249,7 +244,7 @@ class MShellCommand(MCommand):
 
     @classmethod
     def _format_arg(cls, arg: Union[str, MExpr]) -> str:
-        if isinstance(arg, MExpr):
+        if isinstance(arg, VarExpr):
             # Insert make expression as-is, e.g. $(CC) or $(CFLAGS)
             return str(arg)
         if isinstance(arg, str):
@@ -265,7 +260,7 @@ class MShellCommand(MCommand):
 
 # ===== Rules =====
 
-class MRule(language.Block[MCommand]):
+class MRule(Block[MCommand]):
     """
     Builds exactly:
 
@@ -301,7 +296,7 @@ class MRule(language.Block[MCommand]):
             header += f" | {oo}"
 
         super().__init__(
-            begin=language.Text(header),
+            begin=Text(header),
             end=None,
             inner=None,
             outer=None
@@ -323,7 +318,7 @@ class MPhony(MRule):
         super().__init__(".PHONY", targets, op=":")
 
 
-class MInclude(language.Text):
+class MInclude(Text):
     """
     Makefile include line.
 
@@ -353,7 +348,7 @@ class MInclude(language.Text):
         line = "include " + " ".join(parts)
         super().__init__(line)
 
-class MExprLine(language.Text):
+class MExprLine(Text):
     """
     Wrap a Make expression so it can live as a top level Makefile element.
 

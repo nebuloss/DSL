@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from dsl.core.variable import (
+from dsl import (
     LanguageOps,
     VarExpr,
     VarConst,
@@ -22,7 +22,7 @@ class MakeOps(LanguageOps):
 
 # ---------- Core Makefile expression types ----------
 
-MExpr = VarExpr
+MExpr = VarExpr[MakeOps]
 
 class MNull(VarNull[MakeOps]):
     def __str__(self):
@@ -246,57 +246,3 @@ MakeOps.Or = MOr
 MakeOps.Add = MAdd
 MakeOps.Null= MNull
 # MakeOps.Sub/Mul/Div remain None
-
-
-# ---------- Convenience namespace (no free functions) ----------
-
-class M:
-    """
-    Public Makefile expression API.
-    Use:
-        M.Var, M.Const, M.If, M.Call, M.Eval, M.Shell, M.Foreach
-        and helper constructors: M.var(), M.const(), M.all(), M.any(), ...
-    """
-    null=MNull()
-
-    @staticmethod
-    def const(val: Any) -> MConst:
-        return MConst(val)
-
-    @staticmethod
-    def true() -> MConst:
-        return MConst.true()
-
-    @staticmethod
-    def false() -> MConst:
-        return MConst.false()
-
-    @staticmethod
-    def var(name: str) -> MVar:
-        return MVar(name)
-
-    @staticmethod
-    def all(*vars: MVar) -> MExpr:
-        acc: MExpr = MConst.true()
-        for v in vars:
-            acc &= v
-        return acc
-
-    @staticmethod
-    def any(*vars: MVar) -> MExpr:
-        acc: MExpr = MConst.false()
-        for v in vars:
-            acc |= v
-        return acc
-
-    @staticmethod
-    def eval(text: MExpr) -> MEval:
-        return MEval(text)
-
-    @staticmethod
-    def shell(text: MExpr) -> MShell:
-        return MShell(text)
-
-    @staticmethod
-    def foreach(var: MVar, items: MExpr, body: MExpr) -> MForeach:
-        return MForeach(var, items, body)
