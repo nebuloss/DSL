@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Tuple, Union
+from abc import ABC
+from typing import Any, ClassVar, Literal, Optional, Tuple, Union
 
 from dsl import (
     LanguageOps,
@@ -27,128 +28,99 @@ class KconfigOps(LanguageOps):
 KExpr = VarExpr
 
 
-class KConst(VarConst[KconfigOps]):
-    SupportedType = Literal["string", "int", "hex", "bool"]
+class KConst(VarConst[KconfigOps], ABC):
+    """
+    Abstract base Kconfig constant.
 
-    def __init__(self, val: Any, val_type: Optional["KConst.SupportedType"] = None):
-        kind, normalized = self._infer_or_validate(val, val_type)
-        self._val_type: "KConst.SupportedType" = kind
-        super().__init__(normalized)
+    Subclasses (KConstBool, KConstInt, KConstString, KConstHex) perform
+    validation and normalisation. This class should not be instantiated
+    directly.
+    """
 
-    @property
-    def val_type(self) -> "KConst.SupportedType":
-        return self._val_type
 
-    @staticmethod
-    def _infer_or_validate(
-        val: Any,
-        val_type: Optional["KConst.SupportedType"],
-    ) -> Tuple["KConst.SupportedType", Any]:
-        if val_type is None:
-            match val:
-                case bool():
-                    return "bool", bool(val)
-                case int():
-                    return "int", int(val)
-                case str():
-                    return "string", val
-                case _:
-                    raise TypeError(f"Unsupported KConst value type: {type(val).__name__}")
+class KConstBool(KConst):
 
-        match val_type:
-            case "bool":
-                match val:
-                    case bool():
-                        return "bool", val
-                    case int():
-                        return "bool", bool(val)
-                    case str():
-                        s = val.strip().lower()
-                        if s in ("y", "n"):
-                            return "bool", (s == "y")
-                        raise TypeError("Bool constant must be bool or 'y'/'n'")
-                    case _:
-                        raise TypeError("Bool constant must be bool or 'y'/'n'")
+    def __init__(self, val: Union[str, bool, int]):
+        if isinstance(val, bool):
+            v = val
+        elif isinstance(val, int):
+            v = bool(val)
+        elif isinstance(val, str):
+            s = val.strip().lower()
+            if s == "y":
+                v = True
+            elif s == "n":
+                v = False
+            else:
+                raise TypeError("Bool constant string must be 'y' or 'n'")
+        else:
+            raise TypeError("Bool constant must be bool, int, or 'y'/'n'")
+        super().__init__(v)
 
-            case "string":
-                return "string", str(val)
+    def __str__(self) -> str:
+        return "y" if bool(self.val) else "n"
+    
+    @classmethod
+    def true(cls) -> "KConstBool":
+        return KConstBool(True)
 
-            case "int":
-                match val:
-                    case bool():
-                        return "int", int(val)
-                    case int():
-                        return "int", val
-                    case str():
-                        s = val.strip()
-                        if s.isdigit():
-                            return "int", int(s)
-                        raise TypeError("Int constant must be int or decimal str")
-                    case _:
-                        raise TypeError("Int constant must be int or decimal str")
+    @classmethod
+    def false(cls) -> "KConstBool":
+        return KConstBool(False)
 
-            case "hex":
-                match val:
-                    case bool():
-                        return "hex", int(val)
-                    case int():
-                        return "hex", val
-                    case str():
-                        s = val.strip()
-                        try:
-                            parsed = int(s, 16)
-                        except ValueError:
-                            raise TypeError("Hex constant must be int or hex string")
-                        return "hex", parsed
-                    case _:
-                        raise TypeError("Hex constant must be int or hex string")
 
-            case _:
-                raise TypeError(f"Unknown SupportedType {val_type!r}")
+class KConstInt(KConst):
+
+    def __init__(self, val: Union[int, str, bool]):
+        if isinstance(val, bool):
+            v = int(val)
+        elif isinstance(val, int):
+            v = val
+        elif isinstance(val, str):
+            s = val.strip()
+            if not s or not s.isdigit():
+                raise TypeError("Int constant string must be a decimal integer")
+            v = int(s)
+        else:
+            raise TypeError("Int constant must be int, bool, or decimal string")
+        super().__init__(v)
+
+    def __str__(self) -> str:
+        return str(int(self.val))
+
+
+class KConstString(KConst):
+
+    def __init__(self, val: Any):
+        super().__init__(str(val))
 
     @staticmethod
     def _escape_string(s: str) -> str:
         return s.replace("\\", "\\\\").replace('"', '\\"')
 
     def __str__(self) -> str:
-        match self._val_type:
-            case "bool":
-                return "y" if bool(self.val) else "n"
-            case "string":
-                return f"\"{self._escape_string(str(self.val))}\""
-            case "int":
-                return str(int(self.val))
-            case "hex":
-                return f"0x{int(self.val):X}"
-            case _:
-                return str(self.val)
+        return f"\"{self._escape_string(str(self.val))}\""
 
-    # Override to ensure type "bool"
-    @classmethod
-    def true(cls) -> "KConst":
-        return cls(True, "bool")
 
-    @classmethod
-    def false(cls) -> "KConst":
-        return cls(False, "bool")
+class KConstHex(KConst):
 
-    # Typed constructors
+    def __init__(self, val: Union[int, str, bool]):
+        if isinstance(val, bool):
+            v = int(val)
+        elif isinstance(val, int):
+            v = val
+        elif isinstance(val, str):
+            s = val.strip()
+            try:
+                v = int(s, 16)
+            except ValueError:
+                raise TypeError("Hex constant string must be a valid hex literal")
+        else:
+            raise TypeError("Hex constant must be int, bool, or hex string")
+        super().__init__(v)
 
-    @classmethod
-    def bool(cls, val: Union[str, bool, int]) -> "KConst":
-        return cls(val, "bool")
-
-    @classmethod
-    def int(cls, val: Union[int, str, bool]) -> "KConst":
-        return cls(val, "int")
-
-    @classmethod
-    def string(cls, val: Any) -> "KConst":
-        return cls(val, "string")
-
-    @classmethod
-    def hex(cls, val: Union[int, str, bool]) -> "KConst":
-        return cls(val, "hex")
+    def __str__(self) -> str:
+        return f"0x{int(self.val):X}"
 
 
 class KVar(VarName[KconfigOps]):

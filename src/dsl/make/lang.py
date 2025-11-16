@@ -138,6 +138,10 @@ class MIfExpr(Block[MElement]):
 
         out.append(endif_line)
         return out
+    
+class MIf(MIfExpr):
+    def __init__(self, var: MVar, *body: MElement, **kw):
+        super().__init__(f"if {var.name}", *body, **kw)
 
 class MIfDef(MIfExpr):
     def __init__(self, var: MVar, *body: MElement, **kw):

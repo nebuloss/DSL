@@ -56,6 +56,7 @@ OpsT = TypeVar("OpsT", bound=LanguageOps)
 # Base expression
 # =====================================================================
 
+
 class VarExpr(Generic[OpsT], ABC):
     """
     Generic expression node. Knows its LanguageOps via generics.
@@ -87,17 +88,13 @@ class VarExpr(Generic[OpsT], ABC):
             rhs_is_null = isinstance(rhs, null_cls)
 
             if lhs_is_null and rhs_is_null:
-                # Collapse Null op Null to the singleton
                 return null_cls()
             if lhs_is_null:
-                # Null op X -> simplified X
                 return rhs.simplify()
             if rhs_is_null:
-                # X op Null -> simplified X
                 return lhs.simplify()
 
         if op_cls is None:
-            # Map the operator class to a printable token for the error
             op_map = {
                 ops.And: "&",
                 ops.Or: "|",
@@ -179,40 +176,39 @@ class VarExpr(Generic[OpsT], ABC):
 
     # ---------- resolve LanguageOps from generics ----------
 
-    def _resolve_ops(self) -> Type[LanguageOps]:
-        # Instance-level generic
+    def _resolve_ops(self) -> Type["LanguageOps"]:
+        # First generic parameter, expected to be a subclass of LanguageOps
+        return self._resolve_type_arg(index=0, expected=LanguageOps)
+
+    def _resolve_type_arg(self, *, index: int, expected: type) -> type:
+        """
+        Resolve generic type argument at position `index` that is a
+        subclass of `expected`. Looks at instance __orig_class__ then
+        class __orig_bases__.
+        """
+
+        # Instance-level generic, e.g. expr: VarExpr[MyOps]
         orig = getattr(self, "__orig_class__", None)
         if orig is not None:
             args = get_args(orig)
-            if args:
-                cand = args[0]
-                if self._is_valid_ops(cand):
+            if len(args) > index:
+                cand = args[index]
+                if isinstance(cand, type) and issubclass(cand, expected):
                     return cand
 
-        # Class-level bases
+        # Class-level generic bases, e.g. class Foo(VarExpr[MyOps]): ...
         for base in getattr(type(self), "__orig_bases__", ()):
             args = get_args(base)
-            if args:
-                cand = args[0]
-                if self._is_valid_ops(cand):
+            if len(args) > index:
+                cand = args[index]
+                if isinstance(cand, type) and issubclass(cand, expected):
                     return cand
 
         raise TypeError(
-            f"Could not resolve LanguageOps for {type(self).__name__}. "
+            f"Could not resolve generic parameter {index} as subclass of "
+            f"{expected.__name__} for {type(self).__name__}. "
             "Declare your node as VarExpr[YourOps] and bind YourOps table."
         )
-
-    @staticmethod
-    def _is_valid_ops(cand: Any) -> bool:
-        if not isinstance(cand, type):
-            return False
-        if not issubclass(cand, LanguageOps):
-            return False
-        required = ("Const", "Name", "Not", "And", "Or")
-        for attr in required:
-            if getattr(cand, attr, None) is None:
-                return False
-        return True  # Add/Sub/Mul/Div are optional
 
     # ---------- language consistency ----------
 
@@ -244,6 +240,7 @@ class VarExpr(Generic[OpsT], ABC):
 
     def __eq__(self, other: "VarExpr") -> bool:
         return isinstance(other, VarExpr) and str(self) == str(other)
+
 
 
 # =====================================================================
