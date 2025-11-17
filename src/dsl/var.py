@@ -12,7 +12,6 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
-    get_args,
 )
 
 from .typing_utils import resolve_generic_type_arg

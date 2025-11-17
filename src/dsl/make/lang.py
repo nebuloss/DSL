@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 from typing import List, Literal, Optional, Union
 
-from dsl import Node,Stack,SimpleStack,BlankLine,Text,WordAlignedStack,Block
-from .var import MVar,MExpr
+from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
+from .var import MExpr
 
 MElement = Node
 
@@ -20,184 +20,17 @@ class MList(SimpleStack[MElement]):
 
 # ===== Comments and banners =====
 
-class MComment(Text):
+class Comment(Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 # ===== Assignments (LHS is a var) =====
 
-class MAssignment(Text):
-    """
-    VAR op VALUE
-
-    Operators:
-      =    recursive
-      :=   simple
-      ?=   set if not set
-      +=   append
-    """
-
-    def __init__(self, var: MVar, value: MExpr, op: str = "="):
-        op = op.strip()
-        if op not in ("=", ":=", "?=", "+="):
-            raise ValueError(f"Invalid assignment operator: {op}")
-        super().__init__(f"{var.name} {op} {value}")
-
-
-class MSet(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "=")
-
-class MSetImmediate(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, ":=")
-
-class MSetDefault(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "?=")
-
-class MAppend(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "+=")
-
-class MAssignments(WordAlignedStack[MAssignment]):
-    def __init__(self,*assignments:MAssignment):
-        super().__init__(*assignments,limit=2)
-
-# ===== Conditionals (Makefile syntax) =====
-
-class MIfExpr(Block[MElement]):
-    """
-    Block with else-if chaining and else body.
-
-    begin:  "if ..."   | "ifdef ..." | "ifndef ..." | "ifeq (...)" | "ifneq (...)"
-    end:    "endif"
-
-    Else-if rendering rule:
-      for block in Elif:
-          cond_lines = block.lines
-          if len(cond_lines) >= 2:
-              emit "else " + cond_lines[0]
-              emit cond_lines[1:-1]   # skip inner "endif"
-    """
-
-    def __init__(
-        self,
-        header: str,
-        *body: MElement,
-    ):
-        super().__init__(
-            begin=Text(header.strip()),
-            end=Text("endif"),
-            inner=Makefile.MARGIN,
-            outer=None
-        )
-
-        self._elif: Stack["MIfExpr"] = Stack(
-            inner=Makefile.MARGIN,
-            outer=None
-        )
-        self._else: Stack[MElement] = Stack(
-            inner=Makefile.MARGIN,
-            outer=None
-        )
-
-        self.extend(body)
-
-    @property
-    def Elif(self) -> Stack["MIfExpr"]:
-        """Chained else-if blocks."""
-        return self._elif
-
-    @property
-    def Else(self) -> Stack[MElement]:
-        """Final else body."""
-        return self._else
-
-    @property
-    def lines(self) -> List[str]:
-        out: List[str] = super().lines
-        if not out:
-            return out
-
-        # Remove our own "endif"
-        endif_line = out.pop()
-
-        # Else-if branches
-        for block in self._elif:
-            cond_lines = block.lines
-            if len(cond_lines) >= 2:
-                out.append("else " + cond_lines[0])
-                out.extend(cond_lines[1:-1])
-
-        # Final else
-        else_lines = self._else.lines
-        if else_lines:
-            out.append("else")
-            out.extend(Node.indent(1, else_lines))
-
-        out.append(endif_line)
-        return out
-    
-class MIf(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"if {var.name}", *body, **kw)
-
-class MIfDef(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"ifdef {var.name}", *body, **kw)
-
-
-class MIfNDef(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"ifndef {var.name}", *body, **kw)
-
-
-class MIfEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
-        super().__init__(f"ifeq ({a},{b})", *body, **kw)
-
-
-class MIfNEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
-        super().__init__(f"ifneq ({a},{b})", *body, **kw)
-
-
-# ===== define / endef =====
-
-class MDefine(Block[MElement]):
-    """
-    Multi-line define / endef macro:
-
-        define FOO
-            ...
-        endef
-
-    `name` must be an MVar (only `name.name` is used, not $(NAME)).
-    """
-
-    def __init__(self, name: MVar, *body: MElement):
-        if not isinstance(name, MVar):
-            raise TypeError(f"Macro name must be MVar, got {type(name).__name__}")
-        macro = name.name.strip()
-        if not macro:
-            raise ValueError("Macro name cannot be empty")
-
-        begin = Text(f"define {macro}")
-        end = Text("endef")
-
-        super().__init__(
-            *body,
-            begin=begin,
-            end=end,
-            inner=Makefile.MARGIN,
-            outer=None
-        )
 
 
 # ===== Commands =====
 
-class MCommand(Text):
+class Command(Text):
     """
     Make recipe command line.
 
@@ -213,7 +46,7 @@ class MCommand(Text):
         super().__init__(text)
 
 
-class MShellCommand(MCommand):
+class ShellCommand(Command):
     """
     Convenience wrapper to build a command line from arguments.
 
@@ -264,7 +97,7 @@ class MShellCommand(MCommand):
 
 # ===== Rules =====
 
-class MRule(Block[MCommand]):
+class Rule(Block[Command]):
     """
     Builds exactly:
 
@@ -306,8 +139,7 @@ class MRule(Block[MCommand]):
             outer=None
         )
 
-
-class MPhony(MRule):
+class Phony(Rule):
     """
     .PHONY declaration helper.
 
@@ -321,38 +153,7 @@ class MPhony(MRule):
             raise ValueError(".PHONY requires at least one target")
         super().__init__(".PHONY", targets, op=":")
 
-
-class MInclude(Text):
-    """
-    Makefile include line.
-
-    - Escapes spaces in each path (foo bar -> foo\\ bar)
-    - Supports multiple paths:
-        MInclude("a.mk", "b mk") -> include a.mk b\\ mk
-    """
-    @staticmethod
-    def _escape_spaces(path: str) -> str:
-        """Escape spaces for use in a Makefile include."""
-        # Make treats backslash-space as a single space character in the filename.
-        return path.replace(" ", r"\ ")
-
-    def __init__(self, *paths: str):
-        if not paths:
-            raise ValueError("MInclude requires at least one path")
-
-        parts: list[str] = []
-
-        for p in paths:
-            if not isinstance(p, str):
-                raise TypeError("include paths must be strings")
-            
-            p = self._escape_spaces(p)
-            parts.append(p)
-
-        line = "include " + " ".join(parts)
-        super().__init__(line)
-
-class MExprLine(Text):
+class Line(Text):
     """
     Wrap a Make expression so it can live as a top level Makefile element.
 

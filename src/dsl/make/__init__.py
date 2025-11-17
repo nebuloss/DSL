@@ -50,13 +50,13 @@ from .lang import (
 # Core expression aliases
 # ---------------------------------------------------------------------
 
-Expr = MExpr
-Const = MConst
+MExpr = MExpr
+MConst = MConst
 Var = MVar
 Arg = MArg
 Add = MAdd
 Func = MFunc
-Null = MNull
+MNull = MNull
 
 # lowercase convenience aliases for classes
 expr = MExpr
@@ -64,28 +64,28 @@ const = MConst
 var = MVar
 
 # Convenience constants
-true = Const.true()
-false = Const.false()
-null = Null()
+true = MConst.true()
+false = MConst.false()
+null = MNull()
 
 
-def all(*vars: Var) -> Expr:
+def all(*vars: Var) -> MExpr:
     """
     Logical AND over a sequence of Var.
     all(a, b, c) becomes a & b & c, starting from true.
     """
-    result: Expr = true
+    result: MExpr = true
     for v in vars:
         result &= v
     return result
 
 
-def any(*vars: Var) -> Expr:
+def any(*vars: Var) -> MExpr:
     """
     Logical OR over a sequence of Var.
     any(a, b, c) becomes a | b | c, starting from false.
     """
-    result: Expr = false
+    result: MExpr = false
     for v in vars:
         result |= v
     return result
@@ -101,7 +101,7 @@ def arg(n: int) -> Arg:
     return Arg(n)
 
 
-def expr(e: Expr) -> MExprLine:
+def expr(e: MExpr) -> MExprLine:
     """
     Wrap an expression as a top level Makefile element.
 
@@ -197,8 +197,8 @@ comment = MComment
 
 __all__ = [
     # expression core
-    "Expr",
-    "Const",
+    "MExpr",
+    "MConst",
     "Var",
     "Arg",
     "Func",

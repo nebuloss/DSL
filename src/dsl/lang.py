@@ -59,6 +59,10 @@ class Text(Node):
     @property
     def lines(self) -> List[str]:
         return [self._text]
+    
+    @property
+    def text(self):
+        return self._text
 
 
 class BlankLine(Node):
@@ -84,33 +88,8 @@ class SimpleStack(Node,Generic[TNode]):
 
     def __init__(self, *children: TNode):
         self._children: List[TNode] = []
-        self._child_type: type = resolve_generic_type_arg(
-                self, index=0, expected=Node
-            )
+        self._child_type: type = resolve_generic_type_arg(self, index=0, expected=Node)
         self.extend(children)
-
-    # ---- typing helper ----
-
-    def _resolve_child_type(self) -> type:
-        print(f"try to resolve {Node.__name__} at index {-1}")
-        orig = getattr(self, "__orig_class__", None)
-        if orig is not None:
-            print(args)
-            args = get_args(orig)
-            if args:
-                t = args[-1]
-                if isinstance(t, type) and issubclass(t, Node):
-                    return t
-
-        for base in getattr(type(self), "__orig_bases__", ()):
-            args = get_args(base)
-            print(args)
-            if args:
-                t = args[-1]
-                if isinstance(t, type) and issubclass(t, Node):
-                    return t
-
-        return Node
 
     # ---- configuration ----
 
@@ -390,3 +369,11 @@ class Block(Stack[TNode]):
 
         # Let Stack handle insertion of inner/outer margins
         yield from self.iter_with_margin(*nodes)
+
+    @property
+    def begin(self):
+        return self._begin
+    
+    @property
+    def end(self):
+        return self._end
