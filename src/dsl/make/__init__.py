@@ -59,8 +59,9 @@ Func = MFunc
 Null = MNull
 
 # lowercase convenience aliases for classes
-const = Const
-var = Var
+expr = MExpr
+const = MConst
+var = MVar
 
 # Convenience constants
 true = Const.true()
@@ -188,11 +189,11 @@ assignment = AssignmentNS()
 
 Element = MElement
 File = Makefile
-Rule = MRule
-Phony = MPhony
-ShellCommand = MShellCommand
-Command = MCommand
-Comment = MComment
+rule = MRule
+phony = MPhony
+shell = MShellCommand
+command = MCommand
+comment = MComment
 
 __all__ = [
     # expression core
@@ -223,9 +224,9 @@ __all__ = [
     # file / structure API
     "Element",
     "File",
-    "Command",
-    "Comment",
-    "Rule",
-    "Phony",
-    "ShellCommand",
+    "command",
+    "comment",
+    "rule",
+    "phony",
+    "shell",
 ]

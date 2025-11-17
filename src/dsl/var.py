@@ -15,6 +15,8 @@ from typing import (
     get_args,
 )
 
+from .typing_utils import resolve_generic_type_arg
+
 
 # =====================================================================
 # Language descriptor
@@ -57,7 +59,7 @@ OpsT = TypeVar("OpsT", bound=LanguageOps)
 # =====================================================================
 
 
-class VarExpr(Generic[OpsT], ABC):
+class VarExpr(Generic[OpsT],ABC):
     """
     Generic expression node. Knows its LanguageOps via generics.
     Provides uniform operator dispatch that consults LanguageOps.
@@ -178,37 +180,7 @@ class VarExpr(Generic[OpsT], ABC):
 
     def _resolve_ops(self) -> Type["LanguageOps"]:
         # First generic parameter, expected to be a subclass of LanguageOps
-        return self._resolve_type_arg(index=0, expected=LanguageOps)
-
-    def _resolve_type_arg(self, *, index: int, expected: type) -> type:
-        """
-        Resolve generic type argument at position `index` that is a
-        subclass of `expected`. Looks at instance __orig_class__ then
-        class __orig_bases__.
-        """
-
-        # Instance-level generic, e.g. expr: VarExpr[MyOps]
-        orig = getattr(self, "__orig_class__", None)
-        if orig is not None:
-            args = get_args(orig)
-            if len(args) > index:
-                cand = args[index]
-                if isinstance(cand, type) and issubclass(cand, expected):
-                    return cand
-
-        # Class-level generic bases, e.g. class Foo(VarExpr[MyOps]): ...
-        for base in getattr(type(self), "__orig_bases__", ()):
-            args = get_args(base)
-            if len(args) > index:
-                cand = args[index]
-                if isinstance(cand, type) and issubclass(cand, expected):
-                    return cand
-
-        raise TypeError(
-            f"Could not resolve generic parameter {index} as subclass of "
-            f"{expected.__name__} for {type(self).__name__}. "
-            "Declare your node as VarExpr[YourOps] and bind YourOps table."
-        )
+        return resolve_generic_type_arg(self,index=0, expected=LanguageOps)
 
     # ---------- language consistency ----------
 

@@ -6,7 +6,7 @@ from typing import Generic, Optional, Self, TypeVar, Union, get_args
 
 from dsl import Node,Text,Stack,BlankLine,SimpleStack,Block
 from .var import KConstBool, KConstHex, KConstInt, KConstString, KExpr,KVar,KConst
-
+from ..typing_utils import resolve_generic_type_arg
 
 KElement = Node
 
@@ -67,16 +67,12 @@ class KTypedOption(Block[KElement], Generic[ConstT]):
         type_keyword: str,
         *,
         prompt: Optional[str] = None,
-        menuconfig: bool = False,
+        keyword:str="config",
     ):
         self._name = name
         # Resolve ConstT from generics (like VarExpr does for OpsT)
-        self._const_type: type[KConst] = self._resolve_type_arg(
-            index=0,
-            expected=KConst,
-        )
+        self._const_type: type[KConst] = resolve_generic_type_arg(self,index=0,expected=KConst)
 
-        keyword = "menuconfig" if menuconfig else "config"
         begin = Text(f"{keyword} {name}")
 
         super().__init__(begin=begin, end=None, inner=None, outer=None)
@@ -89,42 +85,6 @@ class KTypedOption(Block[KElement], Generic[ConstT]):
     @property
     def name(self) -> KVar:
         return self._name
-
-    # ---------- generic parameter resolution (VarExpr-style) ----------
-
-    def _resolve_type_arg(self, *, index: int, expected: type) -> type:
-        """
-        Resolve generic type argument at position `index` that is a
-        subclass of `expected`. Looks at instance __orig_class__ and
-        then walks the MRO to inspect each base's __orig_bases__.
-
-        This lets it work even for second-level subclasses like
-        KMenuconfig(KBool), where the generic lives on KBool.
-        """
-
-        # Instance-level generic, e.g. opt: KBool = KBool(...)
-        orig = getattr(self, "__orig_class__", None)
-        if orig is not None:
-            args = get_args(orig)
-            if len(args) > index:
-                cand = args[index]
-                if isinstance(cand, type) and issubclass(cand, expected):
-                    return cand
-
-        # Walk MRO and check each base's __orig_bases__
-        for base in type(self).mro():
-            for gb in getattr(base, "__orig_bases__", ()):
-                args = get_args(gb)
-                if len(args) > index:
-                    cand = args[index]
-                    if isinstance(cand, type) and issubclass(cand, expected):
-                        return cand
-
-        raise TypeError(
-            f"Could not resolve generic parameter {index} as subclass of "
-            f"{expected.__name__} for {type(self).__name__}. "
-            "Declare your node as KTypedOption[YourConstType]."
-        )
 
     # ---------- DSL helpers ----------
 
@@ -172,54 +132,28 @@ class KBool(KTypedOption[KConstBool]):
         self,
         name: KVar,
         prompt: Optional[str] = None,
-        menuconfig: bool = False,
     ):
-        super().__init__(name, "bool", prompt=prompt, menuconfig=menuconfig)
+        super().__init__(name, "bool", prompt=prompt)
 
 
 class KString(KTypedOption[KConstString]):
-    def __init__(
-        self,
-        name: KVar,
-        prompt: Optional[str] = None,
-        menuconfig: bool = False,
-    ):
-        super().__init__(name, "string", prompt=prompt, menuconfig=menuconfig)
+    def __init__(self, name: KVar, prompt: Optional[str] = None):
+        super().__init__(name, "string", prompt=prompt)
 
 
 class KInt(KTypedOption[KConstInt]):
-    def __init__(
-        self,
-        name: KVar,
-        prompt: Optional[str] = None,
-        menuconfig: bool = False,
-    ):
-        super().__init__(name, "int", prompt=prompt, menuconfig=menuconfig)
+    def __init__(self, name: KVar, prompt: Optional[str] = None):
+        super().__init__(name, "int", prompt=prompt)
 
 
 class KHex(KTypedOption[KConstHex]):
-    def __init__(
-        self,
-        name: KVar,
-        prompt: Optional[str] = None,
-        menuconfig: bool = False,
-    ):
-        super().__init__(name, "hex", prompt=prompt, menuconfig=menuconfig)
+    def __init__(self, name: KVar, prompt: Optional[str] = None):
+        super().__init__(name, "hex", prompt=prompt)
 
 
-class KMenuconfig(KBool):
-    """
-    Convenience wrapper:
-
-      menuconfig NAME
-          bool "Prompt"
-          ...
-    """
-
+class KMenuconfig(KTypedOption[KConstBool]):
     def __init__(self, name: KVar, prompt: str):
-        super().__init__(name, prompt=prompt, menuconfig=True)
-
-
+        super().__init__(name,"bool", prompt=prompt, keyword="menuconfig")
 
 
 # ===== Block constructs: if / menu =====
@@ -289,31 +223,28 @@ class KChoice(KBlock):
     Only the alternatives are children of this Choice node.
     """
 
+    class KChoiceHeader(Block[KElement]):
+        def __init__(self, prompt:str, type_keyword:str="bool"):
+            super().__init__(
+                KStringKey("prompt", prompt), 
+                Text(type_keyword), 
+                begin=Text("choice"),
+                end=None, 
+                inner=None, 
+                outer=None
+            )
+
     def __init__(
         self,
         prompt: str,
         *choices: KElement,
         type_keyword: str = "bool",
     ):
-        # Header:
-        #   choice
-        #       prompt "..."
-        #       <type_keyword>
-        header = Block(
-                begin=Text("choice"),
-                end=None,
-                inner=None,
-                outer=None
-            ).extend((
-                KStringKey("prompt", prompt),
-                Text(type_keyword)
-            ))
-
         # Main Choice block:
         # begin = header (choice + its properties)
         # children = actual alternatives
         # end = endchoice
-        super().__init__(header, *choices)
+        super().__init__(self.KChoiceHeader(prompt,type_keyword), *choices)
 
 
 # ===== Simple one-line elements =====

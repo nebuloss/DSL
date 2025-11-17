@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from copy import copy
 from typing import Generic, Iterable, List, Optional, Self, TypeVar, get_args
+from .typing_utils import resolve_generic_type_arg
 
 
 # ========= Core node =========
@@ -72,25 +73,29 @@ class BlankLine(Node):
 
 # ========= SimpleStack (no margins) =========
 
-T = TypeVar("T", bound="Node")
+TNode = TypeVar("TNode", bound="Node")
 
 
-class SimpleStack(Node, Generic[T]):
+class SimpleStack(Node,Generic[TNode]):
     """
     Simple vertical container without margins.
     Renders children one after another in order.
     """
 
-    def __init__(self, *children: T):
-        self._children: List[T] = []
-        self._child_type: type = self._resolve_child_type()
+    def __init__(self, *children: TNode):
+        self._children: List[TNode] = []
+        self._child_type: type = resolve_generic_type_arg(
+                self, index=0, expected=Node
+            )
         self.extend(children)
 
     # ---- typing helper ----
 
     def _resolve_child_type(self) -> type:
+        print(f"try to resolve {Node.__name__} at index {-1}")
         orig = getattr(self, "__orig_class__", None)
         if orig is not None:
+            print(args)
             args = get_args(orig)
             if args:
                 t = args[-1]
@@ -99,6 +104,7 @@ class SimpleStack(Node, Generic[T]):
 
         for base in getattr(type(self), "__orig_bases__", ()):
             args = get_args(base)
+            print(args)
             if args:
                 t = args[-1]
                 if isinstance(t, type) and issubclass(t, Node):
@@ -113,12 +119,12 @@ class SimpleStack(Node, Generic[T]):
         return self._child_type
 
     @property
-    def children(self) -> tuple[T, ...]:
+    def children(self) -> tuple[TNode, ...]:
         return tuple(self._children)
 
     # ---- mutation ----
 
-    def append(self, child: T) -> Self:
+    def append(self, child: TNode) -> Self:
         if not isinstance(child, self._child_type):
             raise TypeError(
                 f"Expected child of type {self._child_type.__name__}, "
@@ -129,7 +135,7 @@ class SimpleStack(Node, Generic[T]):
 
     __iadd__ = append
 
-    def extend(self, children: Iterable[T]) -> Self:
+    def extend(self, children: Iterable[TNode]) -> Self:
         for c in children:
             self.append(c)
         return self
@@ -175,7 +181,7 @@ class SimpleStack(Node, Generic[T]):
         new.append(other)
         return new
 
-    def __getitem__(self, index: int) -> T:
+    def __getitem__(self, index: int) -> TNode:
         return self._children[index]
 
     def __len__(self) -> int:
@@ -196,7 +202,7 @@ class SimpleStack(Node, Generic[T]):
 
 # ========= Stack with margins =========
 
-class Stack(SimpleStack[T]):
+class Stack(SimpleStack[TNode]):
     """
     Vertical container with optional inner / outer margin nodes.
 
@@ -208,7 +214,7 @@ class Stack(SimpleStack[T]):
 
     def __init__(
         self,
-        *children: T,
+        *children: TNode,
         inner: Optional[Node] = None,
         outer: Optional[Node] = None,
     ):
@@ -280,7 +286,7 @@ class Stack(SimpleStack[T]):
 
 # ========= Word-aligned stack =========
 
-class WordAlignedStack(Stack[T]):
+class WordAlignedStack(Stack[TNode]):
     """
     Align children on word boundaries.
 
@@ -295,7 +301,7 @@ class WordAlignedStack(Stack[T]):
 
     def __init__(
         self,
-        *children: T,
+        *children: TNode,
         inner: Optional[Node] = None,
         outer: Optional[Node] = None,
         limit: Optional[int] = None,
@@ -348,7 +354,7 @@ class WordAlignedStack(Stack[T]):
 
 # ========= Block =========
 
-class Block(Stack[T]):
+class Block(Stack[TNode]):
     """
     Begin/end wrapper with indented inner content.
 
@@ -359,7 +365,7 @@ class Block(Stack[T]):
 
     def __init__(
         self,
-        *children: T,
+        *children: TNode,
         begin: Optional[Node] = None,
         end: Optional[Node] = None,
         inner: Optional[Node] = None,
