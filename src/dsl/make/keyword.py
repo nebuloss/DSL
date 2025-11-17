@@ -108,11 +108,9 @@ class MIfList(SimpleStack[MIfExpr]):
         first_cond = self.children[0]
         if isinstance(first_cond, MElse):
             raise SyntaxError("Cannot have else statement at first position")
-
-        # First branch: normal if / ifdef / ifndef / ifeq / ifneq
-        first_header, first_body, shared_endif = first_cond.split_parts()
-        out.append(first_header)
-        out.extend(first_body)
+        
+        out.extend(first_cond.begin.lines)
+        out.extend(first_cond.toStack().lines)
 
         # Else-if branches and optional final else
         for cond in self.children[1:]:
@@ -121,12 +119,11 @@ class MIfList(SimpleStack[MIfExpr]):
                 out.extend(cond.lines)
                 return out
 
-            header, body, _ = cond.split_parts()
-            out.append(f"else {header}")
-            out.extend(body)
+            out.append(f"else {"".join(cond.begin.lines)}")
+            out.extend(cond.toStack().lines)
 
         # No Else encountered: close with shared endif
-        out.append(shared_endif)
+        out.extend(first_cond.end.lines)
         return out
 
 class MInclude(Text):
