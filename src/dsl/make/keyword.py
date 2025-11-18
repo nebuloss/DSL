@@ -1,9 +1,9 @@
 from typing import List, Tuple
 from dsl.lang import Block, Node, SimpleStack, Stack, Text
-from dsl.make.lang import MElement, Makefile
+from dsl.make.lang import Line, MElement, Makefile
 from dsl.make.var import MExpr, MVar
 
-class MDefine(Block[MElement]):
+class MDefine(Block[Line,Text,Text]):
     """
     Multi-line define / endef macro:
 
@@ -14,25 +14,22 @@ class MDefine(Block[MElement]):
     `name` must be an MVar (only `name.name` is used, not $(NAME)).
     """
 
-    def __init__(self, name: MVar, *body: MElement):
+    def __init__(self, name: MVar, *body: Line):
         if not isinstance(name, MVar):
             raise TypeError(f"Macro name must be MVar, got {type(name).__name__}")
-        macro = name.name.strip()
-        if not macro:
-            raise ValueError("Macro name cannot be empty")
 
-        begin = Text(f"define {macro}")
+        begin = Text(f"define {name}")
         end = Text("endef")
 
         super().__init__(
             *body,
-            begin=begin,
-            end=end,
+            begin,
+            end,
             inner=Makefile.MARGIN,
             outer=None
         )
 
-class MIfExpr(Block[MElement]):
+class MIfExpr(Block[MElement,Text,Text]):
     """
     Block with else-if chaining and else body.
 

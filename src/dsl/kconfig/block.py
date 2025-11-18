@@ -1,12 +1,13 @@
 # ===== Block constructs: if / menu =====
 
+from abc import ABC, abstractmethod
 from dsl.kconfig.lang import KConfig, KElement, KStringKey
 from dsl.kconfig.option import KChoiceHeader
 from dsl.kconfig.var import KVar
-from dsl.lang import Block, Node, Text
+from dsl.lang import Block, Text
 
 
-class KBlock(Block[KElement]):
+class KBlock(Block[KElement,KElement,Text],ABC):
     """
     Helper for simple:
 
@@ -14,23 +15,18 @@ class KBlock(Block[KElement]):
           <children...>
       end<keyword>
     """
+    @classmethod
+    @abstractmethod
+    def keyword(cls) -> str:
+        raise NotImplemented
 
-    def __init__(self, begin: Node, *children: KElement):
-        if begin is None:
-            raise ValueError("Expecting begin statement")
-
-        words = str(begin).split()
-        if not words:
-            raise ValueError("Empty begin is not allowed")
-
-        keyword = words[0].lower()
-        end = Text(f"end{keyword}")
+    def __init__(self, begin: KElement, *children: KElement):
+        end = Text(f"end{self.keyword()}")
 
         super().__init__(
-            begin=begin,
-            end=end,
+            begin,
+            end,
             inner=KConfig.MARGIN,
-            outer=None
         )
         self.extend(children)
 
@@ -41,6 +37,9 @@ class KIf(KBlock):
         ...
     endif
     """
+    @classmethod
+    def keyword(cls)->str:
+        return "if"
 
     def __init__(self, condition: KVar, *blocks: KElement):
         super().__init__(Text(f"if {condition}"), *blocks)
@@ -52,7 +51,10 @@ class KMenu(KBlock):
         ...
     endmenu
     """
-
+    @classmethod
+    def keyword(cls)->str:
+        return "menu"
+    
     def __init__(self, title: str, *blocks: KElement):
         super().__init__(KStringKey("menu", title), *blocks)
 
@@ -70,6 +72,9 @@ class KChoice(KBlock):
     Properties (prompt, type) are part of the begin block.
     Only the alternatives are children of this Choice node.
     """
+    @classmethod
+    def keyword(cls)->str:
+        return "choice"
 
     def __init__(
         self,

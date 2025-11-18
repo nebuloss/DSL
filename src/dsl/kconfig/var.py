@@ -33,9 +33,10 @@ class KConst(VarConst[KconfigOps], ABC):
     validation and normalisation. This class should not be instantiated
     directly.
     """
+
+    @classmethod
     @abstractmethod
-    @property
-    def typename(self)->str:
+    def typename(cls) -> str:
         raise NotImplemented
 
 class KVar(VarName[KconfigOps]):

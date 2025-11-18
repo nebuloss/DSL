@@ -4,14 +4,14 @@ from typing import Generic, Optional, TypeVar, Union
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
 from dsl.kconfig.lang import KConfig, KElement, KStringKey
 from dsl.kconfig.var import KConst, KExpr, KVar
-from dsl.lang import Block, Node, Text
+from dsl.lang import NULL, Block, Node, NullNode, Text
 from dsl.typing_utils import resolve_generic_type_arg
 
 
 ConstT = TypeVar("ConstT", bound=KConst)
 
 
-class KOption(Block[KElement], Generic[ConstT]):
+class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
     """
     Generic typed symbol:
 
@@ -41,12 +41,12 @@ class KOption(Block[KElement], Generic[ConstT]):
         else:
             begin = Text(f"{keyword} {name}")
 
-        super().__init__(begin=begin, end=None, inner=None, outer=None)
+        super().__init__(begin, NULL)
 
         if prompt is None:
-            self.append(Text(self._const_type.typename))
+            self.append(Text(self._const_type.typename()))
         else:
-            self.append(KStringKey(self._const_type.typename, prompt))
+            self.append(KStringKey(self._const_type.typename(), prompt))
 
     @property
     def name(self) -> KVar:
@@ -57,7 +57,7 @@ class KOption(Block[KElement], Generic[ConstT]):
     def add_default(
         self,
         value: Union[KVar, ConstT],
-        when: Optional[KExpr] = None,
+        when: KExpr = KConstBool.true(),
     ) -> "KOption[ConstT]":
         """
         Add a 'default' line.
@@ -66,22 +66,11 @@ class KOption(Block[KElement], Generic[ConstT]):
           - KVar   -> used directly as symbol name
           - ConstT -> must match this option's constant type
         """
-        if isinstance(value, KVar):
-            v_str = str(value)
-        else:
-            # runtime check that matches the generic ConstT
-            if not isinstance(value, self._const_type):
-                raise TypeError(
-                    f"Default constant for {type(self).__name__} "
-                    f"must be {self._const_type.__name__}, "
-                    f"got {type(value).__name__}"
-                )
-            v_str = str(value)
 
         if when is None or KConst.isTrue(when):
-            self.append(Text(f"default {v_str}"))
+            self.append(Text(f"default {value}"))
         else:
-            self.append(Text(f"default {v_str} if {when}"))
+            self.append(Text(f"default {value} if {when}"))
         return self
 
     def add_depends(self, *conds: KExpr) -> "KOption[ConstT]":

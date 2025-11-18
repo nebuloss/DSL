@@ -2,6 +2,7 @@ from typing import Any, Union
 
 from dsl.kconfig.var import KConst
 
+
 class KConstBool(KConst):
 
     def __init__(self, val: Union[str, bool, int]):
@@ -23,7 +24,7 @@ class KConstBool(KConst):
 
     def __str__(self) -> str:
         return "y" if bool(self.val) else "n"
-    
+
     @classmethod
     def true(cls) -> "KConstBool":
         return KConstBool(True)
@@ -31,10 +32,11 @@ class KConstBool(KConst):
     @classmethod
     def false(cls) -> "KConstBool":
         return KConstBool(False)
-    
-    @property
-    def typename(self)->str:
+
+    @classmethod
+    def typename(cls) -> str:
         return "bool"
+
 
 class KConstInt(KConst):
 
@@ -54,10 +56,11 @@ class KConstInt(KConst):
 
     def __str__(self) -> str:
         return str(int(self.val))
-    
-    @property
-    def typename(self)->str:
+
+    @classmethod
+    def typename(cls) -> str:
         return "int"
+
 
 class KConstString(KConst):
 
@@ -70,10 +73,11 @@ class KConstString(KConst):
 
     def __str__(self) -> str:
         return f"\"{self._escape_string(str(self.val))}\""
-    
-    @property
-    def typename(self)->str:
+
+    @classmethod
+    def typename(cls) -> str:
         return "string"
+
 
 class KConstHex(KConst):
 
@@ -94,7 +98,7 @@ class KConstHex(KConst):
 
     def __str__(self) -> str:
         return f"0x{int(self.val):X}"
-    
-    @property
-    def typename(self)->str:
+
+    @classmethod
+    def typename(cls) -> str:
         return "hex"

@@ -5,6 +5,7 @@ import re
 from typing import List, Literal, Optional, Union
 
 from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
+from dsl.lang import NULL, NullNode
 from .var import MExpr
 
 MElement = Node
@@ -97,7 +98,7 @@ class ShellCommand(Command):
 
 # ===== Rules =====
 
-class Rule(Block[Command]):
+class Rule(Block[Command,Text,NullNode]):
     """
     Builds exactly:
 
@@ -133,8 +134,8 @@ class Rule(Block[Command]):
             header += f" | {oo}"
 
         super().__init__(
-            begin=Text(header),
-            end=None,
+            Text(header),
+            NULL,
             inner=None,
             outer=None
         )

@@ -11,7 +11,7 @@ class KConfig(Stack[KElement]):
     MARGIN:Optional[Node]=BlankLine()
 
     def __init__(self,*elements:KElement):
-        super().__init__(*elements,inner=self.MARGIN, outer=None)
+        super().__init__(*elements,inner=self.MARGIN)
 
 class KList(SimpleStack[KElement]):
     pass
