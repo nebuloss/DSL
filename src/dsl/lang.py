@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from copy import copy
-from typing import Generic, Iterable, List, Optional, Self, TypeVar, cast
+from types import GenericAlias
+from typing import Generic, Iterable, List, Optional, Self, Type, TypeVar, cast
 from .typing_utils import resolve_generic_type_arg
 
 
@@ -18,13 +19,69 @@ class Node(ABC):
         return "\n".join(self.lines)
 
 
-class IndentedNode(Node):
+TChild = TypeVar("TChild", bound=Node)
+
+class ContainerNode(Node, Generic[TChild], ABC):
+    """
+    Base class for containers of child nodes with a single child type.
+
+    - __class_getitem__ makes ContainerNode[T] (and subclasses like Stack[T])
+      real subclasses whose __orig_bases__ contain GenericAlias(cls, (T,)).
+    - child_type is resolved once in __init__ via resolve_generic_type_arg.
+    - ensure_type / ensure_child_type centralise runtime checks.
+    """
+
+    def __init__(self) -> None:
+        self._child_type: Type[TChild] = resolve_generic_type_arg(
+            self,
+            index=0,
+            expected=Node,  # used only if there is no generic origin
+        )
+
+    @property
+    def child_type(self) -> Type[TChild]:
+        return self._child_type
+
+    @staticmethod
+    def ensure_type(value: object, expected: Type[TChild]) -> TChild:
+        if not isinstance(value, expected):
+            raise TypeError(
+                f"Expected {expected.__name__}, got {type(value).__name__}"
+            )
+        return value  # type: ignore[return-value]
+
+    def ensure_child_type(self, value: object) -> TChild:
+        return self.ensure_type(value, self._child_type)
+
+    def __class_getitem__(cls, item):
+        """
+        Support ContainerNode[T] (and subclasses) by creating
+        a subclass whose __orig_bases__ contains GenericAlias(cls, (T,)).
+        """
+        if isinstance(item, tuple):
+            args = item
+        else:
+            args = (item,)
+
+        alias = GenericAlias(cls, args)
+
+        arg_names = ", ".join(
+            getattr(a, "__name__", repr(a)) for a in args
+        )
+        name = f"{cls.__name__}[{arg_names}]"
+
+        namespace = dict(cls.__dict__)
+        namespace["__orig_bases__"] = (alias,)
+
+        return type(name, (cls,), namespace)
+
+
+class IndentedNode(ContainerNode[Node]):
     TAB = "\t"
 
     def __init__(self, child: Node, level: int = 1):
-        if not isinstance(child, Node):
-            raise TypeError("child must be a Node")
-        self._child = child
+        super().__init__()
+        self._child = self.ensure_child_type(child)
         self._level = max(0, int(level))
 
     @classmethod
@@ -110,49 +167,24 @@ class BlankLine(Node):
 
 # ========= SimpleStack (no margins) =========
 
-TChild = TypeVar("TChild", bound="Node")
-TExpected = TypeVar("TExpected", bound="Node")
-
-
-class SimpleStack(Node, Generic[TChild]):
+class SimpleStack(ContainerNode[TChild]):
     """
     Simple vertical container without margins.
     Renders children one after another in order.
     """
 
     def __init__(self, *children: TChild):
+        super().__init__()
         self._children: List[TChild] = []
-        self._child_type: type = resolve_generic_type_arg(self, index=0, expected=Node)
         self.extend(children)
-
-    # ---- configuration ----
-
-    @property
-    def child_type(self) -> type[Node]:
-        return self._child_type
 
     @property
     def children(self) -> tuple[TChild, ...]:
         return tuple(self._children)
 
-    # ---- helpers ----
-
-    @staticmethod
-    def ensure_type(value: object, expected: type[TExpected]) -> TExpected:
-        """
-        Runtime type guard that returns value as the expected subclass type.
-        """
-        if not isinstance(value, expected):
-            raise TypeError(
-                f"Expected {expected.__name__}, got {type(value).__name__}"
-            )
-        return cast(TExpected, value)
-
-    # ---- mutation ----
-
     def append(self, child: TChild) -> Self:
-        checked_child = self.ensure_type(child, self._child_type)
-        self._children.append(checked_child)
+        checked = self.ensure_child_type(child)
+        self._children.append(checked)
         return self
 
     __iadd__ = append
@@ -162,7 +194,6 @@ class SimpleStack(Node, Generic[TChild]):
             self.append(c)
         return self
 
-    # ---- algebra ----
 
     def __imul__(self, n: int) -> Self:
         if not isinstance(n, int):
@@ -238,11 +269,10 @@ class Stack(SimpleStack[TChild]):
         self,
         *children: TChild,
         inner: Node = NULL,
-        outer: Node = NULL,
+        outer: Node = NULL
     ):
         super().__init__(*children)
-        self._inner: Node = self.ensure_type(inner, Node)
-        self._outer: Node = self.ensure_type(outer, Node)
+        self.set_margins(inner,outer)
 
     @property
     def inner(self) -> Node:
@@ -255,7 +285,7 @@ class Stack(SimpleStack[TChild]):
     def set_margins(
         self,
         inner: Node = NULL,
-        outer: Node = NULL,
+        outer: Node = NULL
     ) -> Self:
         self._inner = self.ensure_type(inner, Node)
         self._outer = self.ensure_type(outer, Node)
@@ -292,9 +322,7 @@ class Stack(SimpleStack[TChild]):
         yield outer
 
     def __iter__(self):
-        # Default: margins around and between children
-        yield from self.iter_with_margin(*self._children)
-
+        yield from self.iter_with_margin(*self.children)
 
 # ========= Word-aligned stack =========
 
@@ -416,10 +444,8 @@ class Block(Stack[TChild], Generic[TChild, TBegin, TEnd]):
         return self._end
 
     def toStack(self) -> Stack[TChild]:
-        """
-        Just a typed cast from Block[TChild, TBegin, TEnd] to Stack[TChild].
-
-        At runtime this is still the same object and still behaves like a Block
-        (Block.__iter__ is used), but type checkers will see it as a Stack.
-        """
-        return cast(Stack[TChild], self)
+        return Stack[self.child_type](
+            *self.children,
+            inner=self.inner,
+            outer=self.outer,
+        )

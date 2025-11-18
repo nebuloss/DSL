@@ -1,5 +1,7 @@
-from typing import List, Tuple
-from dsl.lang import Block, Node, SimpleStack, Stack, Text
+from abc import ABC, abstractmethod
+from typing import Iterable, List, Tuple
+from dsl.kconfig.var import KVar
+from dsl.lang import Block, IndentedNode, Node, SimpleStack, Stack, Text
 from dsl.make.lang import Line, MElement, Makefile
 from dsl.make.var import MExpr, MVar
 
@@ -29,7 +31,7 @@ class MDefine(Block[Line,Text,Text]):
             outer=None
         )
 
-class MIfExpr(Block[MElement,Text,Text]):
+class MIfExpr(Block[MElement,Text,Text],ABC):
     """
     Block with else-if chaining and else body.
 
@@ -43,85 +45,97 @@ class MIfExpr(Block[MElement,Text,Text]):
               emit "else " + cond_lines[0]
               emit cond_lines[1:-1]   # skip inner "endif"
     """
+    ENDIF=Text("endif")
+
+    @classmethod
+    @abstractmethod
+    def keyword(cls)->str:
+        raise NotImplemented
 
     def __init__(
         self,
-        header: str,
-        *body: MElement,
+        vars:Iterable[KVar]=[],
+        *body: MElement
     ):
+        self._vars=vars
+
         super().__init__(
             *body,
-            begin=Text(header.strip()),
-            end=Text("endif"),
+            begin=self.generate_condition_statement(),
+            end=self.ENDIF,
             inner=Makefile.MARGIN,
-            outer=None
         )
 
-    def split_parts(self) -> Tuple[str, List[str], str]:
-        lines = self.lines
-        if len(lines) < 2:
-            raise ValueError("IfExpr must have at least a header and 'endif'")
-        return lines[0], lines[1:-1], lines[-1]
-
+    def generate_condition_statement(self,else_keyword:bool=False)->Text:
+        keyword=self.keyword()
+        if else_keyword:
+            keyword="else "+keyword
+        elif not keyword:
+            raise ValueError("empty condition statement not allowed")
+        return Text(f"{keyword} ({",".join(var.name for var in self._vars)})")
 
 class MIf(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"if {var.name}", *body, **kw)
+    @classmethod
+    def keyword(cls):
+        return "if"
+
+    def __init__(self, var: MVar, *body: MElement):
+        super().__init__([var], *body)
 
 
 class MIfDef(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"ifdef {var.name}", *body, **kw)
+    @classmethod
+    def keyword(cls):
+        return "ifdef"
+    
+    def __init__(self, var: MVar, *body: MElement):
+        super().__init__([var], *body)
 
 
 class MIfNDef(MIfExpr):
-    def __init__(self, var: MVar, *body: MElement, **kw):
-        super().__init__(f"ifndef {var.name}", *body, **kw)
+    @classmethod
+    def keyword(cls):
+        return "ifndef"
+    
+    def __init__(self, var: MVar, *body: MElement):
+        super().__init__([var], *body)
 
 
 class MIfEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
-        super().__init__(f"ifeq ({a},{b})", *body, **kw)
+    @classmethod
+    def keyword(cls):
+        return "ifeq"
+    
+    def __init__(self, a: MExpr, b: MExpr, *body: MElement):
+        super().__init__([a,b], *body)
 
 
 class MIfNEq(MIfExpr):
-    def __init__(self, a: MExpr, b: MExpr, *body: MElement, **kw):
-        super().__init__(f"ifneq ({a},{b})", *body, **kw)
+    @classmethod
+    def keyword(cls):
+        return "ifneq"
+    
+    def __init__(self, a: MExpr, b: MExpr, *body: MElement):
+        super().__init__([a,b], *body)
 
 
 class MElse(MIfExpr):
+    @classmethod
+    def keyword(cls):
+        return ""
+    
     def __init__(self, *body):
         super().__init__("else", *body)
 
 
-class MIfList(SimpleStack[MIfExpr]):
-    @property
-    def lines(self) -> List[str]:
-        out: List[str] = []
-
-        if not self.children:
-            return out
-
-        first_cond = self.children[0]
-        if isinstance(first_cond, MElse):
-            raise SyntaxError("Cannot have else statement at first position")
-        
-        out.extend(first_cond.begin.lines)
-        out.extend(first_cond.toStack().lines)
-
-        # Else-if branches and optional final else
-        for cond in self.children[1:]:
-            if isinstance(cond, MElse):
-                # More permissive behavior: use the first Else and ignore anything after
-                out.extend(cond.lines)
-                return out
-
-            out.append(f"else {"".join(cond.begin.lines)}")
-            out.extend(cond.toStack().lines)
-
-        # No Else encountered: close with shared endif
-        out.extend(first_cond.end.lines)
-        return out
+class MIfList(Stack[MIfExpr]):
+    def __iter__(self):
+        nodes:List[Node]=[]
+        for i,child in enumerate(self.children):
+            nodes.append(child.generate_condition_statement(bool(i)))
+            nodes.append(IndentedNode(child.toStack()))
+        nodes.append(MIfExpr.ENDIF)
+        yield from self.iter_with_margin(*nodes)
 
 class MInclude(Text):
     """

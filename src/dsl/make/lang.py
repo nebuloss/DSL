@@ -14,7 +14,7 @@ class Makefile(Stack[MElement]):
     MARGIN:Optional[Node]=BlankLine()
 
     def __init__(self,*elements:MElement):
-        super().__init__(*elements,inner=Makefile.MARGIN,outer=None)
+        super().__init__(*elements,inner=Makefile.MARGIN)
 
 class MList(SimpleStack[MElement]):
     pass

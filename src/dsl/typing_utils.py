@@ -1,41 +1,46 @@
-# typing_utils.py
+# dsl/typing_utils.py
+
 from typing import Any, TypeVar, Type, get_args
 
-TExpected = TypeVar("TExpected")
+T = TypeVar("T")
+
 
 def resolve_generic_type_arg(
     obj: Any,
     *,
     index: int,
-    expected: Type[TExpected],
-) -> Type[TExpected]:
+    expected: Type[T],
+) -> Type[T]:
     """
-    Resolve generic type argument at position `index` that is a
-    subclass of `expected`.
+    Resolve generic type argument at position `index`.
 
-    Looks at instance __orig_class__ then walks the MRO and inspects
-    each base's __orig_bases__.
+    - Walks the MRO and inspects __orig_bases__ on each base.
+    - For each generic origin, it looks at args[index].
+    - Returns the first argument that is a subclass of `expected`.
+    - If no generic origin exists at all, returns `expected`.
+    - If at least one origin exists but none matches `expected`, raises.
     """
-#    print(f"resolve type for {type(obj)} index {index} expected {expected}")
-    # Instance-level generic: foo: Foo[Bar] = Foo(...)
-    orig = getattr(obj, "__orig_class__", None)
-    if orig is not None:
-        args = get_args(orig)
-#        print(args)
-        if len(args) > index:
+
+    saw_any_origin = False
+
+    for base in type(obj).mro():
+        for gb in getattr(base, "__orig_bases__", ()):
+            args = get_args(gb)
+            if not args:
+                continue
+
+            saw_any_origin = True
+
+            if len(args) <= index:
+                continue
+
             cand = args[index]
             if isinstance(cand, type) and issubclass(cand, expected):
                 return cand  # type: ignore[return-value]
 
-    # Walk the MRO and inspect __orig_bases__ of each base
-    for base in type(obj).mro():
-        for gb in getattr(base, "__orig_bases__", ()):
-            args = get_args(gb)
-#            print(args)
-            if len(args) > index:
-                cand = args[index]
-                if isinstance(cand, type) and issubclass(cand, expected):
-                    return cand  # type: ignore[return-value]
+    if not saw_any_origin:
+        # No generic info at all for this object: fall back
+        return expected
 
     raise TypeError(
         f"Could not resolve generic parameter {index} as subclass of "
