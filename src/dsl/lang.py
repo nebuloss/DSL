@@ -16,6 +16,7 @@ class Node(ABC):
         raise NotImplementedError
 
     def __str__(self) -> str:
+#        print(self.lines)
         return "\n".join(self.lines)
 
 
@@ -250,6 +251,7 @@ class SimpleStack(ContainerNode[TChild]):
         out: List[str] = []
         for node in self:
             out.extend(node.lines)
+#            print(f"extend with {repr(node)}={node.lines} -> out={out}")
         return out
 
 
@@ -307,19 +309,25 @@ class Stack(SimpleStack[TChild]):
 
         # Outer before
         yield outer
+#        print(repr(outer))
 
         if len(seq) > 1:
             for n in seq[:-1]:
                 yield n
+#                print(repr(n))
                 yield inner
+#                print(repr(inner))
             # Last element
             yield seq[-1]
+#            print(repr(seq[-1]))
         else:
             # Single element
             yield seq[0]
+#            print(repr(seq[0]))
 
         # Outer after
         yield outer
+#        print(repr(outer))
 
     def __iter__(self):
         yield from self.iter_with_margin(*self.children)
@@ -352,14 +360,13 @@ class WordAlignedStack(Stack[TChild]):
     @property
     def limit(self) -> Optional[int]:
         return self._limit
-
-    @property
-    def lines(self) -> List[str]:
+    
+    def __iter__(self):
         rows: List[List[str]] = []
         widths: List[int] = []
 
         # Pass 1: collect rows and compute max width per column
-        for node in self:
+        for node in super().__iter__():
             raw = " ".join(line.rstrip() for line in node.lines).strip()
             words = raw.split() if raw else []
             rows.append(words)
@@ -373,11 +380,7 @@ class WordAlignedStack(Stack[TChild]):
                 elif lw > widths[i]:
                     widths[i] = lw
 
-        if not rows:
-            return []
-
         # Pass 2: pad existing words, then join
-        out: List[str] = []
         for words in rows:
             n = min(len(words), len(widths))
             if n > 1:
@@ -387,9 +390,8 @@ class WordAlignedStack(Stack[TChild]):
                     if pad > 0:
                         words[i] = w + " " * pad
 
-            out.append(" ".join(words) if n else "")
-
-        return out
+            if n:
+                yield Text(" ".join(words))
 
 
 # ========= Block =========

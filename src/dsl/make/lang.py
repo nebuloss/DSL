@@ -25,9 +25,6 @@ class Comment(Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
-# ===== Assignments (LHS is a var) =====
-
-
 
 # ===== Commands =====
 

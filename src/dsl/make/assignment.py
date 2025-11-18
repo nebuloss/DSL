@@ -1,7 +1,6 @@
 from dsl.lang import Text, WordAlignedStack
 from dsl.make.var import MExpr, MVar
 
-
 class MAssignment(Text):
     """
     VAR op VALUE

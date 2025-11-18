@@ -60,9 +60,9 @@ class MIfExpr(Block[MElement,Text,Text],ABC):
         self._vars=vars
 
         super().__init__(
+            self.generate_condition_statement(),
+            self.ENDIF,
             *body,
-            begin=self.generate_condition_statement(),
-            end=self.ENDIF,
             inner=Makefile.MARGIN,
         )
 
