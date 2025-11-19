@@ -2,9 +2,9 @@
 
 from typing import Generic, Optional, TypeVar, Union
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
-from dsl.kconfig.lang import KConfig, KElement, KStringKey
+from dsl.kconfig.lang import KElement, KStringKey
 from dsl.kconfig.var import KConst, KExpr, KExpr
-from dsl.lang import NULL, Block, Node, NullNode, Text
+from dsl.lang import NULL_NODE, Block, NullNode, Text
 from dsl.typing_utils import resolve_generic_type_arg
 
 
@@ -41,7 +41,7 @@ class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
         else:
             begin = Text(f"{keyword} {name}")
 
-        super().__init__(begin, NULL)
+        super().__init__(begin, NULL_NODE)
 
         if prompt is None:
             self.append(Text(self._const_type.typename()))

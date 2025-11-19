@@ -27,6 +27,8 @@ MExpr = VarExpr
 class MNull(VarNull[MakeOps]):
     def __str__(self):
         return ""
+    
+MNULL=MNull()
 
 class MConst(VarConst[MakeOps]):
     def __str__(self) -> str:

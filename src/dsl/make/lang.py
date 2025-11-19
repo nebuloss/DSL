@@ -5,7 +5,7 @@ import re
 from typing import Dict, List, Literal, Optional, Union
 
 from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
-from dsl.lang import NULL, NullNode
+from dsl.lang import NULL_NODE, NullNode
 from .var import MExpr
 
 MElement = Node
@@ -254,7 +254,7 @@ class MRule(Block[MCommand,Text,NullNode]):
 
         super().__init__(
             Text(header),
-            NULL,
+            NULL_NODE,
             inner=None,
             outer=None
         )

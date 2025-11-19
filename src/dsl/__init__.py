@@ -25,7 +25,8 @@ from .lang import(
     Stack,
     WordAlignedStack,
     BlankLine,
-    Block
+    Block,
+    NULL_NODE
 )
 
 from dsl import kconfig
@@ -56,6 +57,7 @@ __all__ = [
     "WordAlignedStack",
     "BlankLine",
     "Block",
+    "NULL_NODE",
 
     #languages
     "kconfig",

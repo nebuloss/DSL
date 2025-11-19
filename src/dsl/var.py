@@ -362,7 +362,7 @@ class VarNull(VarExpr[OpsT], ABC):
     Each concrete VarNull subclass is a singleton.
     """
 
-    _instance: ClassVar[Optional["VarNull[OpsT]"]] = None
+    _instance: Optional["VarNull[OpsT]"] = None
 
     def __new__(cls) -> "VarNull[OpsT]":
         if cls is VarNull:

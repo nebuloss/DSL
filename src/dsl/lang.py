@@ -125,10 +125,6 @@ class NullNode(Node):
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    @classmethod
-    def instance(cls) -> "NullNode":
-        return cls()
-
     @property
     def lines(self) -> List[str]:
         return []
@@ -137,7 +133,7 @@ class NullNode(Node):
         return "NullNode()"
 
 
-NULL = NullNode.instance()
+NULL_NODE = NullNode()
 
 
 # ========= Leaf nodes =========
@@ -270,8 +266,8 @@ class Stack(SimpleStack[TChild]):
     def __init__(
         self,
         *children: TChild,
-        inner: Node = NULL,
-        outer: Node = NULL
+        inner: Node = NULL_NODE,
+        outer: Node = NULL_NODE
     ):
         super().__init__(*children)
         self.set_margins(inner,outer)
@@ -286,8 +282,8 @@ class Stack(SimpleStack[TChild]):
 
     def set_margins(
         self,
-        inner: Node = NULL,
-        outer: Node = NULL
+        inner: Node = NULL_NODE,
+        outer: Node = NULL_NODE
     ) -> Self:
         self._inner = self.ensure_type(inner, Node)
         self._outer = self.ensure_type(outer, Node)
@@ -350,8 +346,8 @@ class WordAlignedStack(Stack[TChild]):
     def __init__(
         self,
         *children: TChild,
-        inner: Node = NULL,
-        outer: Node = NULL,
+        inner: Node = NULL_NODE,
+        outer: Node = NULL_NODE,
         limit: Optional[int] = None,
     ):
         super().__init__(*children, inner=inner, outer=outer)
@@ -414,8 +410,8 @@ class Block(Stack[TChild], Generic[TChild, TBegin, TEnd]):
         begin: TBegin,
         end: TEnd,
         *children: TChild,
-        inner: Node = NULL,
-        outer: Node = NULL,
+        inner: Node = NULL_NODE,
+        outer: Node = NULL_NODE,
     ):
         # Resolve type parameters for begin and end (if generics are used)
         self._begin_type: type = resolve_generic_type_arg(self, index=1, expected=Node)
