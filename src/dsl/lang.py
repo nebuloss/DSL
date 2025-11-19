@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from copy import copy
 from types import GenericAlias
-from typing import Generic, Iterable, List, Optional, Self, Type, TypeVar, cast
+from typing import Generic, Iterable, List, Optional, Self, Set, Type, TypeVar
 from .typing_utils import resolve_generic_type_arg
 
 
@@ -11,7 +11,7 @@ from .typing_utils import resolve_generic_type_arg
 
 class Node(ABC):
     # Default tag for all nodes is None
-    _tag: Optional[str] = None
+    _tag: Set[str]=set()
 
     @property
     @abstractmethod
@@ -24,23 +24,21 @@ class Node(ABC):
     # ---- tag feature ----
 
     @property
-    def tag(self) -> Optional[str]:
+    def tags(self) -> Set[str]:
         """
         Optional tag associated with this node.
         Can be used to carry metadata (for example, group ids, types, etc.).
         """
         return self._tag
+    
+    def find(self,*tags:str)->List[Node]:
+        found=True
+        for tag in tags:
+            if not tag in self.tags:
+                found=False
+                break
 
-    def setTag(self, tag: Optional[str]) -> Self:
-        """
-        Set or clear the tag.
-
-        Returns self so it can be chained:
-            Text("foo").setTag("header")
-        """
-        self._tag = tag
-        return self
-
+        return [self] if found else []
 
 TChild = TypeVar("TChild", bound=Node)
 
@@ -130,6 +128,11 @@ class IndentedNode(ContainerNode[Node]):
     @property
     def lines(self) -> List[str]:
         return self.indent(self._level, self._child.lines)
+    
+    def find(self, *tags):
+        result=super().find(*tags)
+        result.extend(self.child.find(*tags))
+        return result
 
 
 # ========= Null node =========
@@ -201,14 +204,11 @@ class SimpleStack(ContainerNode[TChild]):
     def children(self) -> tuple[TChild, ...]:
         return tuple(self._children)
     
-    def find(self, tag: Optional[str]) -> Optional[TChild]:
-        """
-        Return the first child whose .tag matches the given value.
-        """
-        return next(
-            (child for child in self._children if child.tag == tag),
-            None,
-        )
+    def find(self, *tags):
+        result=super().find(*tags)
+        for child in self._children:
+            result.extend(child.find(*tags))
+        return result
 
     def append(self, child: TChild) -> Self:
         checked = self.ensure_child_type(child)
@@ -463,6 +463,12 @@ class Block(Stack[TChild], Generic[TChild, TBegin, TEnd]):
 
         # Let Stack handle insertion of inner/outer margins
         yield from self.iter_with_margin(*nodes)
+
+    def find(self, *tags):
+        result=self._begin.find(*tags)
+        result.extend(super().find(*tags))
+        result.extend(self._end.find(*tags))
+        return result
 
     @property
     def begin(self) -> TBegin:
