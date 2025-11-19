@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from copy import copy
 from types import GenericAlias
-from typing import Generic, Iterable, List, Optional, Self, Set, Type, TypeVar
+from typing import Generic, Iterable, List, Optional, Self, Set, Tuple, Type, TypeVar
 from .typing_utils import resolve_generic_type_arg
 
 
@@ -11,7 +11,8 @@ from .typing_utils import resolve_generic_type_arg
 
 class Node(ABC):
     # Default tag for all nodes is None
-    _tag: Set[str]=set()
+    def __init__(self):
+        self._tags:Set[str]=set()
 
     @property
     @abstractmethod
@@ -24,17 +25,21 @@ class Node(ABC):
     # ---- tag feature ----
 
     @property
-    def tags(self) -> Set[str]:
+    def tags(self) -> Tuple[str, ...]:
         """
         Optional tag associated with this node.
         Can be used to carry metadata (for example, group ids, types, etc.).
         """
-        return self._tag
+        return tuple(self._tags)
+    
+    def addTags(self,*tags:str)->Self:
+        self._tags.update(*tags)
+        return self
     
     def find(self,*tags:str)->List[Node]:
         found=True
         for tag in tags:
-            if not tag in self.tags:
+            if not tag in self._tags:
                 found=False
                 break
 
@@ -53,6 +58,7 @@ class ContainerNode(Node, Generic[TChild], ABC):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self._child_type: Type[TChild] = resolve_generic_type_arg(
             self,
             index=0,
@@ -165,6 +171,7 @@ NULL_NODE = NullNode()
 
 class Text(Node):
     def __init__(self, text: str):
+        super().__init__()
         self._text = text
 
     @property
@@ -201,7 +208,7 @@ class SimpleStack(ContainerNode[TChild]):
         self.extend(children)
 
     @property
-    def children(self) -> tuple[TChild, ...]:
+    def children(self) -> Tuple[TChild, ...]:
         return tuple(self._children)
     
     def find(self, *tags):
