@@ -39,7 +39,7 @@ class KConst(VarConst[KconfigOps], ABC):
     def typename(cls) -> str:
         raise NotImplemented
 
-class KVar(VarName[KconfigOps]):
+class KExpr(VarName[KconfigOps]):
     @staticmethod
     def normalize(name: str) -> str:
         # Use VarName normalization, then uppercase for Kconfig style
@@ -84,7 +84,7 @@ class KOr(VarOr[KconfigOps]):
 # ---------- Fill KconfigOps table ----------
 
 KconfigOps.Const = KConst
-KconfigOps.Name = KVar
+KconfigOps.Name = KExpr
 KconfigOps.Not = KNot
 KconfigOps.And = KAnd
 KconfigOps.Or = KOr

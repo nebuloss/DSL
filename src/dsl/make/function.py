@@ -2,7 +2,7 @@ from typing import Any, List, Optional
 from dsl.make.var import MConst, MExpr, MVar, MakeOps
 from dsl.var import VarExpr
 
-class MFunction(VarExpr[MakeOps]):
+class MFunc(VarExpr[MakeOps]):
     """
     Base class for Make function-like expressions:
       $(name arg1,arg2,...)
@@ -52,7 +52,7 @@ class MFunction(VarExpr[MakeOps]):
 
 # ---------- Higher-level Make expressions ----------
 
-class MIf(MFunction):
+class MIfFunc(MFunc):
     """$(if cond,then[,else])"""
 
     def __init__(
@@ -76,21 +76,21 @@ class MIf(MFunction):
         return f"$(if {cond},{then},{otherwise})"
 
 
-class MEval(MFunction):
+class MEvalFunc(MFunc):
     """$(eval text) as an expression (expands to empty string at runtime)"""
 
     def __init__(self, text: MExpr):
         super().__init__("eval", text)
 
 
-class MShell(MFunction):
+class MShellFunc(MFunc):
     """$(shell text) as an expression"""
 
     def __init__(self, text: MExpr):
         super().__init__("shell", text)
 
 
-class MCall(MFunction):
+class MCallFunc(MFunc):
     """$(call name[,arg1[,arg2...]])"""
 
     def __init__(self, name: MVar, *args: MExpr):
@@ -100,7 +100,7 @@ class MCall(MFunction):
         super().__init__("call", MConst(name.name), *args)
 
 
-class MForeach(MFunction):
+class MForeachFunc(MFunc):
     """$(foreach var,list,text)"""
 
     def __init__(self, var: MVar, items: MExpr, body: MExpr):

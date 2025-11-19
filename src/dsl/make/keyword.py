@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Tuple
-from dsl.kconfig.var import KVar
+from dsl.kconfig.var import KExpr
 from dsl.lang import Block, IndentedNode, Node, SimpleStack, Stack, Text
 from dsl.make.lang import Line, MElement, Makefile
 from dsl.make.var import MExpr, MVar
@@ -31,7 +31,7 @@ class MDefine(Block[Line,Text,Text]):
             outer=None
         )
 
-class MIfExpr(Block[MElement,Text,Text],ABC):
+class MCondition(Block[MElement,Text,Text],ABC):
     """
     Block with else-if chaining and else body.
 
@@ -54,7 +54,7 @@ class MIfExpr(Block[MElement,Text,Text],ABC):
 
     def __init__(
         self,
-        vars:Iterable[KVar]=[],
+        vars:Iterable[KExpr]=[],
         *body: MElement
     ):
         self._vars=vars
@@ -74,7 +74,7 @@ class MIfExpr(Block[MElement,Text,Text],ABC):
             raise ValueError("empty condition statement not allowed")
         return Text(f"{keyword} ({",".join(var.name for var in self._vars)})")
 
-class MIf(MIfExpr):
+class MIf(MCondition):
     @classmethod
     def keyword(cls):
         return "if"
@@ -83,7 +83,7 @@ class MIf(MIfExpr):
         super().__init__([var], *body)
 
 
-class MIfDef(MIfExpr):
+class MIfDef(MCondition):
     @classmethod
     def keyword(cls):
         return "ifdef"
@@ -92,7 +92,7 @@ class MIfDef(MIfExpr):
         super().__init__([var], *body)
 
 
-class MIfNDef(MIfExpr):
+class MIfNDef(MCondition):
     @classmethod
     def keyword(cls):
         return "ifndef"
@@ -101,7 +101,7 @@ class MIfNDef(MIfExpr):
         super().__init__([var], *body)
 
 
-class MIfEq(MIfExpr):
+class MIfEq(MCondition):
     @classmethod
     def keyword(cls):
         return "ifeq"
@@ -110,7 +110,7 @@ class MIfEq(MIfExpr):
         super().__init__([a,b], *body)
 
 
-class MIfNEq(MIfExpr):
+class MIfNEq(MCondition):
     @classmethod
     def keyword(cls):
         return "ifneq"
@@ -119,7 +119,7 @@ class MIfNEq(MIfExpr):
         super().__init__([a,b], *body)
 
 
-class MElse(MIfExpr):
+class MElse(MCondition):
     @classmethod
     def keyword(cls):
         return ""
@@ -128,13 +128,13 @@ class MElse(MIfExpr):
         super().__init__("else", *body)
 
 
-class MIfList(Stack[MIfExpr]):
+class MConditionList(Stack[MCondition]):
     def __iter__(self):
         nodes:List[Node]=[]
         for i,child in enumerate(self.children):
-            nodes.append(child.generate_condition_statement(bool(i)))
+            nodes.append(child.generate_condition_statement(else_keyword=bool(i)))
             nodes.append(IndentedNode(child.toStack()))
-        nodes.append(MIfExpr.ENDIF)
+        nodes.append(MCondition.ENDIF)
         yield from self.iter_with_margin(*nodes)
 
 class MInclude(Text):

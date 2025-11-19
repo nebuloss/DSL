@@ -361,14 +361,14 @@ class WordAlignedStack(Stack[TChild]):
     def limit(self) -> Optional[int]:
         return self._limit
     
-    def __iter__(self):
+    @property
+    def lines(self):
         rows: List[List[str]] = []
         widths: List[int] = []
+        out: List[str]=[]
 
-        # Pass 1: collect rows and compute max width per column
-        for node in super().__iter__():
-            raw = " ".join(line.rstrip() for line in node.lines).strip()
-            words = raw.split() if raw else []
+        for line in super().lines:
+            words = line.split()            
             rows.append(words)
 
             for i, w in enumerate(words):
@@ -383,16 +383,16 @@ class WordAlignedStack(Stack[TChild]):
         # Pass 2: pad existing words, then join
         for words in rows:
             n = min(len(words), len(widths))
-            if n > 1:
+            if n:
                 for i in range(n - 1):
                     w = words[i]
                     pad = widths[i] - len(w)
                     if pad > 0:
                         words[i] = w + " " * pad
 
-            if n:
-                yield Text(" ".join(words))
-
+            
+                out.append(" ".join(words))
+        return out
 
 # ========= Block =========
 

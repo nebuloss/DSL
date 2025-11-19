@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dsl.kconfig.lang import KConfig, KElement, KStringKey
 from dsl.kconfig.option import KChoiceHeader
-from dsl.kconfig.var import KVar
+from dsl.kconfig.var import KExpr
 from dsl.lang import Block, Text
 
 
@@ -41,7 +41,7 @@ class KIf(KBlock):
     def keyword(cls)->str:
         return "if"
 
-    def __init__(self, condition: KVar, *blocks: KElement):
+    def __init__(self, condition: KExpr, *blocks: KElement):
         super().__init__(Text(f"if {condition}"), *blocks)
 
 

@@ -3,7 +3,7 @@
 from typing import Generic, Optional, TypeVar, Union
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
 from dsl.kconfig.lang import KConfig, KElement, KStringKey
-from dsl.kconfig.var import KConst, KExpr, KVar
+from dsl.kconfig.var import KConst, KExpr, KExpr
 from dsl.lang import NULL, Block, Node, NullNode, Text
 from dsl.typing_utils import resolve_generic_type_arg
 
@@ -28,7 +28,7 @@ class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
 
     def __init__(
         self,
-        name: Optional[KVar],
+        name: Optional[KExpr],
         prompt: Optional[str] = None,
         keyword:str="config",
     ):
@@ -49,14 +49,14 @@ class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
             self.append(KStringKey(self._const_type.typename(), prompt))
 
     @property
-    def name(self) -> KVar:
+    def name(self) -> KExpr:
         return self._name
 
     # ---------- DSL helpers ----------
 
     def add_default(
         self,
-        value: Union[KVar, ConstT],
+        value: Union[KExpr, ConstT],
         when: KExpr = KConstBool.true(),
     ) -> "KOption[ConstT]":
         """
@@ -79,7 +79,7 @@ class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
                 self.append(Text(f"depends on {cond}"))
         return self
     
-    def add_selects(self, *vars: KVar) -> "KOption[ConstT]":
+    def add_selects(self, *vars: KExpr) -> "KOption[ConstT]":
         for var in vars:
             self.append(Text(f"select {var}"))
         return self
@@ -90,29 +90,29 @@ class KOption(Block[KElement,Text,NullNode], Generic[ConstT]):
 class KOptionBool(KOption[KConstBool]):
     def __init__(
         self,
-        name: KVar,
+        name: KExpr,
         prompt: Optional[str] = None,
     ):
         super().__init__(name, prompt)
 
 
 class KOptionString(KOption[KConstString]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KExpr, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 
 
 class KOptionInt(KOption[KConstInt]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KExpr, prompt: Optional[str] = None):
         super().__init__(name,prompt)
 
 
 class KOptionHex(KOption[KConstHex]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KExpr, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 
 
 class KMenuConfig(KOption[KConstBool]):
-    def __init__(self, name: KVar, prompt: str):
+    def __init__(self, name: KExpr, prompt: str):
         super().__init__(name,prompt, keyword="menuconfig")
 
 class KChoiceHeader(KOption[KConstBool]):

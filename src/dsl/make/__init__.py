@@ -33,24 +33,24 @@ from .assignment import (
 )
 
 from .function import (
-    MFunction,
-    MIf,
-    MEval,
-    MShell,
-    MCall,
-    MForeach,
+    MFunc,
+    MIfFunc,
+    MEvalFunc,
+    MShellFunc,
+    MCallFunc,
+    MForeachFunc,
 )
 
 from .keyword import (
     MDefine,
-    MIfExpr,
+    MCondition,
     MIf as MIfBlock,
     MIfDef,
     MIfNDef,
     MIfEq,
     MIfNEq,
     MElse,
-    MIfList,
+    MConditionList,
     MInclude,
 )
 
@@ -87,22 +87,22 @@ __all__ = [
     "MAssignmentList",
 
     # function
-    "MFunction",
-    "MIf",
-    "MEval",
-    "MShell",
-    "MCall",
-    "MForeach",
+    "MFunc",
+    "MIfFunc",
+    "MEvalFunc",
+    "MShellFunc",
+    "MCallFunc",
+    "MForeachFunc",
 
     # keyword
     "MDefine",
-    "MIfExpr",
+    "MCondition",
     "MIfBlock",
     "MIfDef",
     "MIfNDef",
     "MIfEq",
     "MIfNEq",
     "MElse",
-    "MIfList",
+    "MConditionList",
     "MInclude",
 ]
