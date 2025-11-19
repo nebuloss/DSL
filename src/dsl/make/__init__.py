@@ -21,6 +21,7 @@ from .var import (
     MAnd,
     MOr,
     MNot,
+    MNULL
 )
 
 from .assignment import (
@@ -77,6 +78,8 @@ __all__ = [
     "MAnd",
     "MOr",
     "MNot",
+    # const
+    "MNULL",
 
     # assignment
     "MAssignment",

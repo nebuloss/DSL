@@ -269,8 +269,6 @@ class MPhony(MRule):
     """
 
     def __init__(self, targets: Union[str, MExpr]):
-        if not str(targets).strip():
-            raise ValueError(".PHONY requires at least one target")
         super().__init__(".PHONY", targets, op=":")
 
 class MLine(Text):
