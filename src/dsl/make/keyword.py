@@ -2,10 +2,10 @@ from abc import ABC, abstractmethod
 from typing import Iterable, List, Tuple
 from dsl.kconfig.var import KExpr
 from dsl.lang import Block, IndentedNode, Node, SimpleStack, Stack, Text
-from dsl.make.lang import Line, MElement, Makefile
+from dsl.make.lang import MLine, MElement, Makefile
 from dsl.make.var import MExpr, MVar
 
-class MDefine(Block[Line,Text,Text]):
+class MDefine(Block[MLine,Text,Text]):
     """
     Multi-line define / endef macro:
 
@@ -16,7 +16,7 @@ class MDefine(Block[Line,Text,Text]):
     `name` must be an MVar (only `name.name` is used, not $(NAME)).
     """
 
-    def __init__(self, name: MVar, *body: Line):
+    def __init__(self, name: MVar, *body: MLine):
         if not isinstance(name, MVar):
             raise TypeError(f"Macro name must be MVar, got {type(name).__name__}")
 

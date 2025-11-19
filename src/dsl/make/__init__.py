@@ -2,12 +2,12 @@ from .lang import (
     MElement,
     Makefile,
     MList,
-    Comment,
-    Command,
-    ShellCommand,
-    Rule,
-    Phony,
-    Line,
+    MComment,
+    MCommand,
+    MShellCommand,
+    MRule,
+    MPhony,
+    MLine,
 )
 
 from .var import (
@@ -59,12 +59,12 @@ __all__ = [
     "MElement",
     "Makefile",
     "MList",
-    "Comment",
-    "Command",
-    "ShellCommand",
-    "Rule",
-    "Phony",
-    "Line",
+    "MComment",
+    "MCommand",
+    "MShellCommand",
+    "MRule",
+    "MPhony",
+    "MLine",
 
     # var
     "MakeOps",

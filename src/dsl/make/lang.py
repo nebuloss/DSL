@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
 from dsl.lang import NULL, NullNode
@@ -21,38 +21,147 @@ class MList(SimpleStack[MElement]):
 
 # ===== Comments and banners =====
 
-class Comment(Text):
+class MComment(Text):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 
 # ===== Commands =====
 
-class Command(Text):
+class MCommand(Text):
     """
     Make recipe command line.
 
-    __init__: takes a full command string (already built).
+    Prefix semantics:
+
+      '-'  : ignore errors for this command
+      '@'  : do not echo this command (unless overridden by -n etc.)
+      '+'  : always execute, even with -n/-q/-t
+
+    Any prefix characters already present in `line` are stripped and
+    replaced by the canonical prefix built from the flags.
+
+    The `.command` property returns the execution line with all prefixes
+    removed.
     """
 
-    def __init__(self, line: str, *, silent: bool = False):
+    # Mapping from flag name to prefix char
+    _FLAG_CHAR: Dict[str, str] = {
+        "ignore_errors": "-",
+        "silent": "@",
+        "always": "+",
+    }
+
+    # ---- helpers ----
+
+    @classmethod
+    def _strip_prefix(cls, text: str) -> str:
+        """
+        Return the core part of the command with any leading prefix
+        characters removed and leading whitespace stripped.
+        """
+        text = text.lstrip()
+        prefix_chars = "".join(cls._FLAG_CHAR.values())
+        i = 0
+        while i < len(text) and text[i] in prefix_chars:
+            i += 1
+        core = text[i:].lstrip()
+        return core
+
+    def _set_prefix(
+        self,
+        *,
+        silent: bool = False,
+        ignore_errors: bool = False,
+        always: bool = False,
+    ) -> None:
+        """
+        Initialise internal flags from explicit args only.
+        Existing prefixes in the original line are ignored.
+        """
+        self._flags: Dict[str, bool] = {
+            "silent": bool(silent),
+            "ignore_errors": bool(ignore_errors),
+            "always": bool(always),
+        }
+
+    def _get_prefix(self) -> str:
+        """
+        Build canonical prefix string from internal flags.
+        """
+        parts: List[str] = []
+        for name,value in self._FLAG_CHAR.items():
+            if self._flags.get(name):
+                parts.append(value)
+        return "".join(parts)
+
+    # ---- main API ----
+
+    def __init__(
+        self,
+        line: str,
+        *,
+        silent: bool = False,
+        ignore_errors: bool = False,
+        always: bool = False,
+    ):
         if not isinstance(line, str):
             raise TypeError("Command line must be a str")
-        text = line.lstrip()
-        if silent and not text.startswith("@"):
-            text = "@" + text
-        super().__init__(text)
+
+        core = self._strip_prefix(line)
+        self._set_prefix(
+            silent=silent,
+            ignore_errors=ignore_errors,
+            always=always,
+        )
+        full_text = self._get_prefix() + core
+
+        super().__init__(full_text)
+
+    # ---- flags introspection ----
+
+    @property
+    def flags(self) -> Dict[str, bool]:
+        # Treat as read-only from outside
+        return self._flags
+
+    @property
+    def silent(self) -> bool:
+        return self._flags["silent"]
+
+    @property
+    def ignore_errors(self) -> bool:
+        return self._flags["ignore_errors"]
+
+    @property
+    def always(self) -> bool:
+        return self._flags["always"]
+
+    # ---- execution line (prefix stripped) ----
+
+    @property
+    def command(self) -> str:
+        """
+        Execution line as per spec:
+        the command line with any prefix chars removed.
+        """
+        return self._strip_prefix(self.text)
 
 
-class ShellCommand(Command):
+class MShellCommand(MCommand):
     """
     Convenience wrapper to build a command line from arguments.
 
-        ShellCommand("echo", "hello", "$(VAR)")
-        ShellCommand(M.var("CC"), M.var("CFLAGS"), "-o", "app", "main.o")
+        MShellCommand("echo", "hello", "$(VAR)")
+        MShellCommand(M.var("CC"), M.var("CFLAGS"), "-o", "app", "main.o")
 
     str args are shell-escaped only when needed.
     MExpr args are inserted as-is.
+
+    Prefix flags:
+      - silent=True        -> '@' prefix
+      - ignore_errors=True -> '-' prefix
+      - always=True        -> '+' prefix
     """
 
     # Safe tokens: letters, digits, '_', '-', '.', '/', ':'
@@ -86,16 +195,29 @@ class ShellCommand(Command):
             return cls._escape_token(arg) if cls._needs_quoting(arg) else arg
         raise TypeError("shell args must be str or MExpr")
 
-    def __init__(self, *args: Union[str, MExpr], silent: bool = False):
+    def __init__(
+        self,
+        *args: Union[str, MExpr],
+        silent: bool = False,
+        ignore_errors: bool = False,
+        always: bool = False,
+    ):
         if not args:
-            raise ValueError("ShellCommand requires at least one argument")
+            raise ValueError("MShellCommand requires at least one argument")
+
         parts: List[str] = [self._format_arg(a) for a in args]
         line = " ".join(parts)
-        super().__init__(line, silent=silent)
+
+        super().__init__(
+            line,
+            silent=silent,
+            ignore_errors=ignore_errors,
+            always=always,
+        )
 
 # ===== Rules =====
 
-class Rule(Block[Command,Text,NullNode]):
+class MRule(Block[MCommand,Text,NullNode]):
     """
     Builds exactly:
 
@@ -137,7 +259,7 @@ class Rule(Block[Command,Text,NullNode]):
             outer=None
         )
 
-class Phony(Rule):
+class MPhony(MRule):
     """
     .PHONY declaration helper.
 
@@ -151,7 +273,7 @@ class Phony(Rule):
             raise ValueError(".PHONY requires at least one target")
         super().__init__(".PHONY", targets, op=":")
 
-class Line(Text):
+class MLine(Text):
     """
     Wrap a Make expression so it can live as a top level Makefile element.
 
