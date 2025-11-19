@@ -5,8 +5,6 @@ from .lang import (
     MComment,
     MCommand,
     MShellCommand,
-    MRule,
-    MPhony,
     MLine,
 )
 
@@ -22,6 +20,13 @@ from .var import (
     MOr,
     MNot,
     MNULL
+)
+
+from .rule import (
+    MRule,
+    MPhonyRule,
+    MDefaultRule,
+    MAllRule
 )
 
 from .assignment import (
@@ -63,8 +68,6 @@ __all__ = [
     "MComment",
     "MCommand",
     "MShellCommand",
-    "MRule",
-    "MPhony",
     "MLine",
 
     # var
@@ -108,4 +111,10 @@ __all__ = [
     "MElse",
     "MConditionList",
     "MInclude",
+
+    #rule
+    "MRule",
+    "MPhonyRule",
+    "MDefaultRule",
+    "MAllRule"
 ]

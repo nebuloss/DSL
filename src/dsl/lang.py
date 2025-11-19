@@ -10,14 +10,36 @@ from .typing_utils import resolve_generic_type_arg
 # ========= Core node =========
 
 class Node(ABC):
+    # Default tag for all nodes is None
+    _tag: Optional[str] = None
+
     @property
     @abstractmethod
     def lines(self) -> List[str]:
         raise NotImplementedError
 
     def __str__(self) -> str:
-#        print(self.lines)
         return "\n".join(self.lines)
+
+    # ---- tag feature ----
+
+    @property
+    def tag(self) -> Optional[str]:
+        """
+        Optional tag associated with this node.
+        Can be used to carry metadata (for example, group ids, types, etc.).
+        """
+        return self._tag
+
+    def setTag(self, tag: Optional[str]) -> Self:
+        """
+        Set or clear the tag.
+
+        Returns self so it can be chained:
+            Text("foo").setTag("header")
+        """
+        self._tag = tag
+        return self
 
 
 TChild = TypeVar("TChild", bound=Node)
@@ -178,6 +200,15 @@ class SimpleStack(ContainerNode[TChild]):
     @property
     def children(self) -> tuple[TChild, ...]:
         return tuple(self._children)
+    
+    def find(self, tag: Optional[str]) -> Optional[TChild]:
+        """
+        Return the first child whose .tag matches the given value.
+        """
+        return next(
+            (child for child in self._children if child.tag == tag),
+            None,
+        )
 
     def append(self, child: TChild) -> Self:
         checked = self.ensure_child_type(child)

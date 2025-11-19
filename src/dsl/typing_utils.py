@@ -29,10 +29,10 @@ def resolve_generic_type_arg(
             if not args:
                 continue
 
-            saw_any_origin = True
-
             if len(args) <= index:
                 continue
+
+            saw_any_origin = True
 
             cand = args[index]
             if isinstance(cand, type) and issubclass(cand, expected):

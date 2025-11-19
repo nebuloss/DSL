@@ -1,0 +1,83 @@
+# ===== Rules =====
+
+from typing import Any, Dict, Literal, Optional, Union
+from dsl.lang import NULL_NODE, Block, NullNode, Text
+from dsl.make.lang import MCommand
+from dsl.make.var import MExpr
+
+
+class MRule(Block[MCommand,Text,NullNode]):
+    """
+    Builds exactly:
+
+      <targets> <op> <prereqs> [| <order_only>]
+        \t<recipe...>
+
+    All inputs are used as-is. No normalization or splitting.
+    """
+
+    Op = Literal[":", "::", "&:"]
+
+    def __init__(
+        self,
+        targets: Union[str, MExpr],
+        prereqs: Optional[Union[str, MExpr]] = None,
+        order_only: Optional[Union[str, MExpr]] = None,
+        op: Op = ":",
+    ):
+        if op not in (":", "::", "&:"):
+            raise ValueError(f"Invalid rule operator: {op}")
+
+        left = str(targets).strip()
+        if not left:
+            raise ValueError("Rule requires a non-empty targets string or MExpr")
+
+        right = "" if prereqs is None else str(prereqs).strip()
+        oo = "" if order_only is None else str(order_only).strip()
+
+        header = f"{left} {op}"
+        if right:
+            header += f" {right}"
+        if oo:
+            header += f" | {oo}"
+
+        super().__init__(
+            Text(header),
+            NULL_NODE,
+            inner=NULL_NODE,
+            outer=NULL_NODE
+        )
+        
+
+class MBuiltinRule(MRule):
+    """
+    Specialisation of MRule where the targets are fixed at the class level.
+    ...
+    """
+
+    _builtin_target: Optional[Union[str, MExpr]]=None
+
+    def __init__(
+        self,
+        prereqs: Optional[Union[str, MExpr]] = None,
+    ):
+        # use the target stored on the class
+        if self._builtin_target is None and not (isinstance(self._builtin_target,str) or isinstance(self._builtin_target,MExpr)) :
+            raise TypeError("Invalid type")
+        super().__init__(self._builtin_target, prereqs, None, ":")
+
+    def __class_getitem__(cls, target: Union[str, MExpr]):
+        """
+        MBuiltinRule[".PHONY"] returns a subclass with _builtin_target fixed.
+        """
+        name = f"{cls.__name__}[{target!s}]"
+
+        namespace: Dict[str, Any] = dict(cls.__dict__)
+        namespace["_builtin_target"] = target
+
+        return type(name, (cls,), namespace)
+
+    
+MPhonyRule=MBuiltinRule[".PHONY"]
+MDefaultRule=MBuiltinRule[".DEFAULT"]
+MAllRule=MBuiltinRule["all"]

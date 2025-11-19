@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
 from dsl.lang import NULL_NODE, NullNode
@@ -18,8 +18,6 @@ class Makefile(Stack[MElement]):
 
 class MList(SimpleStack[MElement]):
     pass
-
-# ===== Comments and banners =====
 
 class MComment(Text):
     def __init__(self, text: str):
@@ -214,62 +212,6 @@ class MShellCommand(MCommand):
             ignore_errors=ignore_errors,
             always=always,
         )
-
-# ===== Rules =====
-
-class MRule(Block[MCommand,Text,NullNode]):
-    """
-    Builds exactly:
-
-      <targets> <op> <prereqs> [| <order_only>]
-        \t<recipe...>
-
-    All inputs are used as-is. No normalization or splitting.
-    """
-
-    Op = Literal[":", "::", "&:"]
-
-    def __init__(
-        self,
-        targets: Union[str, MExpr],
-        prereqs: Optional[Union[str, MExpr]] = None,
-        order_only: Optional[Union[str, MExpr]] = None,
-        op: Op = ":",
-    ):
-        if op not in (":", "::", "&:"):
-            raise ValueError(f"Invalid rule operator: {op}")
-
-        left = str(targets).strip()
-        if not left:
-            raise ValueError("Rule requires a non-empty targets string or MExpr")
-
-        right = "" if prereqs is None else str(prereqs).strip()
-        oo = "" if order_only is None else str(order_only).strip()
-
-        header = f"{left} {op}"
-        if right:
-            header += f" {right}"
-        if oo:
-            header += f" | {oo}"
-
-        super().__init__(
-            Text(header),
-            NULL_NODE,
-            inner=None,
-            outer=None
-        )
-
-class MPhony(MRule):
-    """
-    .PHONY declaration helper.
-
-    Use as:
-        Phony('clean test lint')
-        Phony(MConst('clean test'))
-    """
-
-    def __init__(self, targets: Union[str, MExpr]):
-        super().__init__(".PHONY", targets, op=":")
 
 class MLine(Text):
     """
