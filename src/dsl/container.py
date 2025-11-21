@@ -1,8 +1,7 @@
 from abc import ABC
-from collections.abc import Iterator
 from copy import copy
 from types import GenericAlias
-from typing import Generic, Iterable, List, Optional, Self, Type, TypeVar
+from typing import Generic, Iterable, Iterator, List, Optional, Self, Type, TypeVar
 
 from dsl.content import NULL_NODE
 from dsl.node import Line, Node

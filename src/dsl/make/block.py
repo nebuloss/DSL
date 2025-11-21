@@ -1,8 +1,9 @@
-from typing import Generic, TypeVar
-from dsl.container import DelimitedNodeBlock, SimpleNodeStack
+from typing import Generic, Iterator, TypeVar
+from dsl.container import DelimitedNodeBlock, NodeStack, SimpleNodeStack
 from dsl.make.core import MElement, Makefile
 from dsl.make.keyword import MConditionKeyword, MDefineKeyword, MKeyword
 from dsl.make.var import MExpr, MVar
+from dsl.node import Node
 
 TBlockHeader = TypeVar("TChildHeader", bound=MKeyword)
 
@@ -69,9 +70,12 @@ class MElse(MCondition):
         super().__init__(MConditionKeyword("else"), *children)
 
 
-class MConditionList(SimpleNodeStack[MCondition]):
-    def __iter__(self):
-        it=super().__iter__()
+class MConditionList(NodeStack[MCondition]):
+    def __init__(self, *children):
+        super().__init__(*children, margin=Makefile.MARGIN)
+
+    def iter_without_margin(self)->Iterator[Node]:
+        it=SimpleNodeStack[MCondition].__iter__(self)
         first=next(it,None)
 
         if first is None:
@@ -84,3 +88,7 @@ class MConditionList(SimpleNodeStack[MCondition]):
             yield cond.begin.with_else_prefix()
             yield cond.inner()
 
+        yield first.end
+
+    def __iter__(self):
+        yield from self.iter_with_margin(*self.iter_without_margin())
