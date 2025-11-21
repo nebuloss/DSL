@@ -28,23 +28,21 @@ from .content import (
     GenericTextNode,
     TextNode,
     FixedTextNode,
-    BlankLine,
+    BlankLineNode,
 )
 
 from .container import (
     ContainerNode,
     SimpleNodeStack,
-    Stack,
-    Block,
+    NodeStack,
+    IndentedNodeStack,
+    NodeBlock,
+    DelimitedNodeBlock,
     WordAlignedStack,
 )
 
-from . import kconfig
-from . import make
-
-# Optional alias for backward compatibility
-Text = TextNode
-
+#from . import kconfig
+#from . import make
 
 __all__ = [
     # var language core
@@ -71,19 +69,18 @@ __all__ = [
     "GenericTextNode",
     "TextNode",
     "FixedTextNode",
-    "BlankLine",
+    "BlankLineNode",
 
     # containers
     "ContainerNode",
     "SimpleNodeStack",
-    "Stack",
+    "NodeStack",
+    "IndentedNodeStack",
+    "NodeBlock",
+    "DelimitedNodeBlock",
     "WordAlignedStack",
-    "Block",
-
-    # legacy alias
-    "Text",
 
     # sublanguages
-    "kconfig",
-    "make",
+#    "kconfig",
+#    "make",
 ]

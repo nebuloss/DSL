@@ -32,11 +32,11 @@ def resolve_generic_type_arg(
             if len(args) <= index:
                 continue
 
-            saw_any_origin = True
-
             cand = args[index]
-            if isinstance(cand, type) and issubclass(cand, expected):
-                return cand  # type: ignore[return-value]
+            if isinstance(cand, type):
+                saw_any_origin = True
+                if issubclass(cand, expected):
+                    return cand  # type: ignore[return-value]
 
     if not saw_any_origin:
         # No generic info at all for this object: fall back

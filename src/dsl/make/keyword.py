@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Tuple
-from dsl.container import Block, Stack
+from dsl.container import NodeBlock, NodeStack
 from dsl.content import FixedTextNode, TextNode
 from dsl.kconfig.var import KExpr
 from dsl.make.lang import MLine, MElement, Makefile
 from dsl.make.var import MExpr, MVar
 from dsl.node import Node
 
-class MDefine(Block[MLine,FixedTextNode,FixedTextNode]):
+class MDefine(NodeBlock[MLine,FixedTextNode,FixedTextNode]):
     """
     Multi-line define / endef macro:
 
@@ -33,7 +33,7 @@ class MDefine(Block[MLine,FixedTextNode,FixedTextNode]):
             outer=None
         )
 
-class MCondition(Block[MElement,TextNode,TextNode],ABC):
+class MCondition(NodeBlock[MElement,TextNode,TextNode],ABC):
     """
     Block with else-if chaining and else body.
 
@@ -130,7 +130,7 @@ class MElse(MCondition):
         super().__init__("else", *body)
 
 
-class MConditionList(Stack[MCondition]):
+class MConditionList(NodeStack[MCondition]):
     def render(self, level = 0, **kwargs):
         for i,child in enumerate(self):
             nodes.append(child.generate_condition_statement(else_keyword=bool(i)))

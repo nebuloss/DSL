@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from dsl import Node,Text,Stack,BlankLine,SimpleNodeStack
+from dsl import Node,Text,Stack,BlankLineNode,SimpleNodeStack
 
 KElement = Node
 
 class KConfig(Stack[KElement]):
-    MARGIN:Optional[Node]=BlankLine()
+    MARGIN:Optional[Node]=BlankLineNode()
 
     def __init__(self,*elements:KElement):
         super().__init__(*elements,inner=self.MARGIN)

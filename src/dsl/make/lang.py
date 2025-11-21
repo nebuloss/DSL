@@ -4,13 +4,13 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Union
 
-from dsl import Node,Stack,SimpleNodeStack,BlankLine,Text
+from dsl import Node,Stack,SimpleNodeStack,BlankLineNode,Text
 from .var import MExpr
 
 MElement = Node
 
 class Makefile(Stack[MElement]):
-    MARGIN:Optional[Node]=BlankLine()
+    MARGIN:Optional[Node]=BlankLineNode()
 
     def __init__(self,*elements:MElement):
         super().__init__(*elements,inner=Makefile.MARGIN)

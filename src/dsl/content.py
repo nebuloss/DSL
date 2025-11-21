@@ -42,7 +42,7 @@ class NullNode(ContentNode):
 
 NULL_NODE = NullNode()
 
-class BlankLine(ContentNode):
+class BlankLineNode(ContentNode):
     """Vertical space: N empty lines."""
 
     def __init__(self, lines: int = 1) -> None:

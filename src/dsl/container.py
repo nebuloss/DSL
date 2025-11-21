@@ -44,15 +44,12 @@ class ContainerNode(Node, Generic[TChild], ABC):
     def ensure_child_type(self, value: object) -> TChild:
         return self.ensure_type(value, self._child_type)  # type: ignore[return-value]
 
-    def __class_getitem__(cls, item):
+    def __class_getitem__(cls, *items):
         """
         Support ContainerNode[T] (and subclasses) by creating
         a subclass whose __orig_bases__ contains GenericAlias(cls, (T,)).
         """
-        if isinstance(item, tuple):
-            args = item
-        else:
-            args = (item,)
+        args=tuple(items)
 
         alias = GenericAlias(cls, args)
 
@@ -148,7 +145,7 @@ class SimpleNodeStack(ContainerNode[TChild]):
 
     # ---- layout ----
 
-class Stack(SimpleNodeStack[TChild]):
+class NodeStack(SimpleNodeStack[TChild]):
     """
     Vertical container with optional inner / outer margin nodes.
 
@@ -194,11 +191,11 @@ class IndentedNodeStack(SimpleNodeStack[TChild]):
         self._level=1
 
     def render(self, level = 0):
-        super().render(level+self._level)
+        yield from super().render(level+self._level)
 
 TBegin = TypeVar("TBegin", bound=Node)
 
-class Block(Stack[TChild], Generic[TChild, TBegin]):
+class NodeBlock(NodeStack[TChild], Generic[TChild, TBegin]):
 
     def __init__(
         self,
@@ -218,16 +215,14 @@ class Block(Stack[TChild], Generic[TChild, TBegin]):
         return self._begin
 
     def inner(self) -> IndentedNodeStack[Node]:
-        return IndentedNodeStack(*Stack.__iter__(self))
+        return IndentedNodeStack(*NodeStack.__iter__(self))
 
     def __iter__(self) -> Iterable[Node]:
-        # Structural iteration used by find():
-        # begin, body children, end
         yield from self.iter_with_margin(self.begin,self.inner()) 
 
 TEnd = TypeVar("TEnd", bound=Node)
 
-class DelimitedBlockNode(Block[TChild,TBegin],Generic[TEnd]):
+class DelimitedNodeBlock(NodeBlock[TChild,TBegin],Generic[TEnd]):
     def __init__(self, begin: TBegin, end: TEnd, *children: TChild, margin = NULL_NODE):
         super().__init__(begin, *children, margin=margin)
         self._end_type: Type[Node] = resolve_generic_type_arg(self, index=2, expected=Node)
@@ -240,7 +235,7 @@ class DelimitedBlockNode(Block[TChild,TBegin],Generic[TEnd]):
     def __iter__(self):
         yield from self.iter_with_margin(self.begin,self.inner(),self.end)
 
-class WordAlignedStack(Stack[TChild]):
+class WordAlignedStack(NodeStack[TChild]):
     """
     Align children on word boundaries.
 
@@ -256,11 +251,10 @@ class WordAlignedStack(Stack[TChild]):
     def __init__(
         self,
         *children: TChild,
-        inner: Node = NULL_NODE,
-        outer: Node = NULL_NODE,
+        margin:Node=NULL_NODE,
         limit: Optional[int] = None,
     ):
-        super().__init__(*children, inner=inner, outer=outer)
+        super().__init__(*children, margin=margin)
         self._limit: Optional[int] = limit
 
     @property
@@ -306,15 +300,9 @@ class WordAlignedStack(Stack[TChild]):
     def render(
         self,
         level: int = 0,
-        inner_flag: bool = True,
-        outer_flag: bool = True,
-        **kwargs,
     ) -> Iterable[Line]:
         lines_it = super().render(
-            level,
-            inner_flag=inner_flag,
-            outer_flag=outer_flag,
-            **kwargs,
+            level
         )
 
         group: List[Line] = []
