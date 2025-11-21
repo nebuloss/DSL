@@ -4,28 +4,28 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Union
 
-from dsl import Node,Stack,SimpleNodeStack,BlankLineNode,Text
+from dsl import Node,NodeStack,SimpleNodeStack,BlankLineNode,TextNode
 from .var import MExpr
 
 MElement = Node
 
-class Makefile(Stack[MElement]):
+class Makefile(NodeStack[MElement]):
     MARGIN:Optional[Node]=BlankLineNode()
 
     def __init__(self,*elements:MElement):
-        super().__init__(*elements,inner=Makefile.MARGIN)
+        super().__init__(*elements,margin=Makefile.MARGIN)
 
 class MList(SimpleNodeStack[MElement]):
     pass
 
-class MComment(Text):
+class MComment(TextNode):
     def __init__(self, text: str):
         super().__init__(f"# {text}" if text else "#")
 
 
 # ===== Commands =====
 
-class MCommand(Text):
+class MCommand(TextNode):
     """
     Make recipe command line.
 
@@ -212,7 +212,7 @@ class MShellCommand(MCommand):
             always=always,
         )
 
-class MLine(Text):
+class MLine(TextNode):
     """
     Wrap a Make expression so it can live as a top level Makefile element.
 

@@ -20,7 +20,7 @@ def resolve_generic_type_arg(
     - If no generic origin exists at all, returns `expected`.
     - If at least one origin exists but none matches `expected`, raises.
     """
-
+#    print(f"Try to resolve generic parameter {index} as subclass of {expected.__name__} for {type(obj).__name__}")
     saw_any_origin = False
 
     for base in type(obj).mro():
@@ -31,7 +31,7 @@ def resolve_generic_type_arg(
 
             if len(args) <= index:
                 continue
-
+#            print(args)
             cand = args[index]
             if isinstance(cand, type):
                 saw_any_origin = True

@@ -1,4 +1,4 @@
-from .lang import (
+from .core import (
     MElement,
     Makefile,
     MList,

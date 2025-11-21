@@ -1,12 +1,13 @@
 # ===== Rules =====
 
 from typing import Any, Dict, Literal, Optional, Union
-from dsl.lang import NULL_NODE, Block, NullNode, Text
-from dsl.make.lang import MCommand
+from dsl.container import NodeBlock
+from dsl.content import NullNode, TextNode
+from dsl.make.core import MCommand
 from dsl.make.var import MExpr
 
 
-class MRule(Block[MCommand,Text,NullNode]):
+class MRule(NodeBlock[MCommand,TextNode,NullNode]):
     """
     Builds exactly:
 
@@ -41,12 +42,7 @@ class MRule(Block[MCommand,Text,NullNode]):
         if oo:
             header += f" | {oo}"
 
-        super().__init__(
-            Text(header),
-            NULL_NODE,
-            inner=NULL_NODE,
-            outer=NULL_NODE
-        )
+        super().__init__(TextNode(header))
         
 
 class MBuiltinRule(MRule):

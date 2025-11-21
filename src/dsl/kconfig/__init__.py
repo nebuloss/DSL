@@ -1,4 +1,4 @@
-from .lang import (
+from .core import (
     KConfig,
     KElement,
     KList,
@@ -9,6 +9,7 @@ from .lang import (
 
 from .var import (
     KconfigOps,
+    KVar,
     KExpr,
     KConst,
     KExpr,
@@ -54,6 +55,7 @@ __all__ = [
     # var
     "KconfigOps",
     "KExpr",
+    "KVar",
     "KConst",
     "KExpr",
     "KNot",

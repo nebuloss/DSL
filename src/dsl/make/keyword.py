@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Iterable, List, Tuple
-from dsl.container import NodeBlock, NodeStack
+from typing import Iterable
+from dsl.container import DelimitedNodeBlock, NodeBlock, SimpleNodeStack
 from dsl.content import FixedTextNode, TextNode
-from dsl.kconfig.var import KExpr
-from dsl.make.lang import MLine, MElement, Makefile
+from dsl.make.core import MLine, MElement, Makefile
 from dsl.make.var import MExpr, MVar
-from dsl.node import Node
 
 class MDefine(NodeBlock[MLine,FixedTextNode,FixedTextNode]):
     """
@@ -33,7 +31,7 @@ class MDefine(NodeBlock[MLine,FixedTextNode,FixedTextNode]):
             outer=None
         )
 
-class MCondition(NodeBlock[MElement,TextNode,TextNode],ABC):
+class MCondition(DelimitedNodeBlock[MElement,TextNode,TextNode],ABC):
     """
     Block with else-if chaining and else body.
 
@@ -56,7 +54,7 @@ class MCondition(NodeBlock[MElement,TextNode,TextNode],ABC):
 
     def __init__(
         self,
-        vars:Iterable[KExpr]=[],
+        vars:Iterable[MExpr]=[],
         *body: MElement
     ):
         self._vars=vars
@@ -65,7 +63,7 @@ class MCondition(NodeBlock[MElement,TextNode,TextNode],ABC):
             self.generate_condition_statement(),
             self.ENDIF,
             *body,
-            inner=Makefile.MARGIN,
+            margin=Makefile.MARGIN,
         )
 
     def generate_condition_statement(self,else_keyword:bool=False)->TextNode:
@@ -130,20 +128,12 @@ class MElse(MCondition):
         super().__init__("else", *body)
 
 
-class MConditionList(NodeStack[MCondition]):
-    def render(self, level = 0, **kwargs):
-        for i,child in enumerate(self):
-            nodes.append(child.generate_condition_statement(else_keyword=bool(i)))
-            nodes.append(IndentedNode(child.toStack()))
-        nodes.append(MCondition.ENDIF)
-
+class MConditionList(SimpleNodeStack[MCondition]):
     def __iter__(self):
-        nodes:List[Node]=[]
-        for i,child in enumerate(self):
-            nodes.append(child.generate_condition_statement(else_keyword=bool(i)))
-            nodes.append(IndentedNode(child.toStack()))
-        nodes.append(MCondition.ENDIF)
-        yield from self.iter_with_margin(*nodes)
+        for i,child in enumerate(SimpleNodeStack.__iter__(self)):
+            yield child.generate_condition_statement(else_keyword=bool(i))
+            yield child.inner()
+        yield MCondition.ENDIF
 
 class MInclude(TextNode):
     """

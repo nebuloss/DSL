@@ -44,12 +44,13 @@ class ContainerNode(Node, Generic[TChild], ABC):
     def ensure_child_type(self, value: object) -> TChild:
         return self.ensure_type(value, self._child_type)  # type: ignore[return-value]
 
-    def __class_getitem__(cls, *items):
+    def __class_getitem__(cls, item):
         """
         Support ContainerNode[T] (and subclasses) by creating
         a subclass whose __orig_bases__ contains GenericAlias(cls, (T,)).
         """
-        args=tuple(items)
+        args=item if isinstance(item,tuple) else (item,)
+#        print(f"getitem={args}")
 
         alias = GenericAlias(cls, args)
 
@@ -182,7 +183,7 @@ class NodeStack(SimpleNodeStack[TChild]):
             yield self._margin
             yield child
     
-    def __iter__(self):
+    def __iter__(self)->Iterator[Node]:
         yield from self.iter_with_margin(*SimpleNodeStack.__iter__(self))
 
 class IndentedNodeStack(SimpleNodeStack[TChild]):
@@ -232,8 +233,8 @@ class DelimitedNodeBlock(NodeBlock[TChild,TBegin],Generic[TEnd]):
     def end(self)->TEnd:
         return self._end
     
-    def __iter__(self):
-        yield from self.iter_with_margin(self.begin,self.inner(),self.end)
+    def __iter__(self)->Iterator[Node]:
+        yield from self.iter_with_margin(self.begin,NodeBlock.inner(self),self.end)
 
 class WordAlignedStack(NodeStack[TChild]):
     """

@@ -3,20 +3,22 @@ from __future__ import annotations
 
 from typing import Optional
 
-from dsl import Node,Text,Stack,BlankLineNode,SimpleNodeStack
+from dsl import Node,BlankLineNode,SimpleNodeStack
+from dsl.container import NodeStack
+from dsl.content import TextNode
 
 KElement = Node
 
-class KConfig(Stack[KElement]):
+class KConfig(NodeStack[KElement]):
     MARGIN:Optional[Node]=BlankLineNode()
 
     def __init__(self,*elements:KElement):
-        super().__init__(*elements,inner=self.MARGIN)
+        super().__init__(*elements,margin=self.MARGIN)
 
 class KList(SimpleNodeStack[KElement]):
     pass
 
-class KStringKey(Text):
+class KStringKey(TextNode):
     """
     Render: <keyword> "<escaped value>"
 

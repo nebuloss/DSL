@@ -2,14 +2,15 @@
 
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
-from dsl.kconfig.lang import KConfig, KElement, KStringKey
+from dsl.container import DelimitedNodeBlock
+from dsl.content import TextNode
+from dsl.kconfig.core import KConfig, KElement, KStringKey
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
 from dsl.kconfig.var import KExpr
-from dsl.lang import Block, Text
 
 TChildK = TypeVar("TChildK", bound=KElement)
 
-class KBlock(Block[TChildK,KElement,Text],Generic[TChildK]):
+class KBlock(DelimitedNodeBlock[TChildK,KElement,TextNode],Generic[TChildK]):
     """
     Helper for simple:
 
@@ -24,12 +25,12 @@ class KBlock(Block[TChildK,KElement,Text],Generic[TChildK]):
 
 
     def __init__(self, begin: KElement, *children: TChildK):
-        end = Text(f"end{self.keyword()}")
+        end = TextNode(f"end{self.keyword()}")
 
         super().__init__(
             begin,
             end,
-            inner=KConfig.MARGIN,
+            margin=KConfig.MARGIN,
         )
         self.extend(children)
 
@@ -45,7 +46,7 @@ class KIf(KBlock[KElement]):
         return "if"
 
     def __init__(self, condition: KExpr, *blocks: KElement):
-        super().__init__(Text(f"if {condition}"), *blocks)
+        super().__init__(TextNode(f"if {condition}"), *blocks)
 
 
 class KMenu(KBlock[KElement]):

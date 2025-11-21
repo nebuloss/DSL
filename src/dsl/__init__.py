@@ -42,7 +42,7 @@ from .container import (
 )
 
 #from . import kconfig
-#from . import make
+from . import make
 
 __all__ = [
     # var language core
@@ -82,5 +82,5 @@ __all__ = [
 
     # sublanguages
 #    "kconfig",
-#    "make",
+    "make",
 ]
