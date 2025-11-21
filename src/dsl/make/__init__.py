@@ -48,16 +48,18 @@ from .function import (
 )
 
 from .keyword import (
+    MIncludeKeyword as MInclude
+)
+
+from .block import (
     MDefine,
-    MCondition,
-    MIf as MIfBlock,
+    MIf,
     MIfDef,
     MIfNDef,
     MIfEq,
     MIfNEq,
     MElse,
-    MConditionList,
-    MInclude,
+    MConditionList
 )
 
 __all__ = [
@@ -101,16 +103,19 @@ __all__ = [
     "MForeachFunc",
 
     # keyword
+    "MInclude",
+
+    #block
     "MDefine",
     "MCondition",
-    "MIfBlock",
+    "MIf",
     "MIfDef",
     "MIfNDef",
     "MIfEq",
     "MIfNEq",
     "MElse",
     "MConditionList",
-    "MInclude",
+    
 
     #rule
     "MRule",
