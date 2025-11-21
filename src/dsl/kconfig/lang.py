@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from dsl import Node,Text,Stack,BlankLine,SimpleStack
+from dsl import Node,Text,Stack,BlankLine,SimpleNodeStack
 
 KElement = Node
 
@@ -13,7 +13,7 @@ class KConfig(Stack[KElement]):
     def __init__(self,*elements:KElement):
         super().__init__(*elements,inner=self.MARGIN)
 
-class KList(SimpleStack[KElement]):
+class KList(SimpleNodeStack[KElement]):
     pass
 
 class KStringKey(Text):

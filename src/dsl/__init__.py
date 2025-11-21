@@ -1,6 +1,7 @@
 # dsl/__init__.py
 
 from .var import (
+    LanguageOps,
     VarExpr,
     VarUnaryOp,
     VarBinaryOp,
@@ -14,26 +15,39 @@ from .var import (
     VarSub,
     VarMul,
     VarDiv,
-    LanguageOps
 )
 
-from .lang import(
+from .node import (
     Node,
-    IndentedNode,
-    Text,
-    SimpleStack,
-    Stack,
-    WordAlignedStack,
-    BlankLine,
-    Block,
-    NULL_NODE
+    Line,
 )
 
-from dsl import kconfig
-from dsl import make
+from .content import (
+    NullNode,
+    NULL_NODE,
+    GenericTextNode,
+    TextNode,
+    FixedTextNode,
+    BlankLine,
+)
+
+from .container import (
+    ContainerNode,
+    SimpleNodeStack,
+    Stack,
+    Block,
+    WordAlignedStack,
+)
+
+from . import kconfig
+from . import make
+
+# Optional alias for backward compatibility
+Text = TextNode
+
 
 __all__ = [
-    # core
+    # var language core
     "LanguageOps",
     "VarExpr",
     "VarUnaryOp",
@@ -49,17 +63,27 @@ __all__ = [
     "VarMul",
     "VarDiv",
 
+    # node and content
     "Node",
-    "IndentedNode",
-    "Text",
-    "SimpleStack",
+    "Line",
+    "NullNode",
+    "NULL_NODE",
+    "GenericTextNode",
+    "TextNode",
+    "FixedTextNode",
+    "BlankLine",
+
+    # containers
+    "ContainerNode",
+    "SimpleNodeStack",
     "Stack",
     "WordAlignedStack",
-    "BlankLine",
     "Block",
-    "NULL_NODE",
 
-    #languages
+    # legacy alias
+    "Text",
+
+    # sublanguages
     "kconfig",
-    "make"
+    "make",
 ]

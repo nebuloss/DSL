@@ -1,7 +1,8 @@
-from dsl.lang import Text, WordAlignedStack
+from dsl.container import WordAlignedStack
+from dsl.content import TextNode
 from dsl.make.var import MExpr, MVar
 
-class MAssignment(Text):
+class MAssignment(TextNode):
     """
     VAR op VALUE
 

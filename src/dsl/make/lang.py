@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Optional, Union
 
-from dsl import Node,Stack,SimpleStack,BlankLine,Text,Block
-from dsl.lang import NULL_NODE, NullNode
+from dsl import Node,Stack,SimpleNodeStack,BlankLine,Text
 from .var import MExpr
 
 MElement = Node
@@ -16,7 +15,7 @@ class Makefile(Stack[MElement]):
     def __init__(self,*elements:MElement):
         super().__init__(*elements,inner=Makefile.MARGIN)
 
-class MList(SimpleStack[MElement]):
+class MList(SimpleNodeStack[MElement]):
     pass
 
 class MComment(Text):

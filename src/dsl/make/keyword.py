@@ -1,11 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Tuple
+from dsl.container import Block, Stack
+from dsl.content import FixedTextNode, TextNode
 from dsl.kconfig.var import KExpr
-from dsl.lang import Block, IndentedNode, Node, SimpleStack, Stack, Text
 from dsl.make.lang import MLine, MElement, Makefile
 from dsl.make.var import MExpr, MVar
+from dsl.node import Node
 
-class MDefine(Block[MLine,Text,Text]):
+class MDefine(Block[MLine,FixedTextNode,FixedTextNode]):
     """
     Multi-line define / endef macro:
 
@@ -20,8 +22,8 @@ class MDefine(Block[MLine,Text,Text]):
         if not isinstance(name, MVar):
             raise TypeError(f"Macro name must be MVar, got {type(name).__name__}")
 
-        begin = Text(f"define {name}")
-        end = Text("endef")
+        begin = FixedTextNode(f"define {name}")
+        end = FixedTextNode("endef")
 
         super().__init__(
             *body,
@@ -31,7 +33,7 @@ class MDefine(Block[MLine,Text,Text]):
             outer=None
         )
 
-class MCondition(Block[MElement,Text,Text],ABC):
+class MCondition(Block[MElement,TextNode,TextNode],ABC):
     """
     Block with else-if chaining and else body.
 
@@ -45,7 +47,7 @@ class MCondition(Block[MElement,Text,Text],ABC):
               emit "else " + cond_lines[0]
               emit cond_lines[1:-1]   # skip inner "endif"
     """
-    ENDIF=Text("endif")
+    ENDIF=TextNode("endif")
 
     @classmethod
     @abstractmethod
@@ -66,13 +68,13 @@ class MCondition(Block[MElement,Text,Text],ABC):
             inner=Makefile.MARGIN,
         )
 
-    def generate_condition_statement(self,else_keyword:bool=False)->Text:
+    def generate_condition_statement(self,else_keyword:bool=False)->TextNode:
         keyword=self.keyword()
         if else_keyword:
             keyword="else "+keyword
         elif not keyword:
             raise ValueError("empty condition statement not allowed")
-        return Text(f"{keyword} ({",".join(var.name for var in self._vars)})")
+        return TextNode(f"{keyword} ({",".join(var.name for var in self._vars)})")
 
 class MIf(MCondition):
     @classmethod
@@ -129,15 +131,21 @@ class MElse(MCondition):
 
 
 class MConditionList(Stack[MCondition]):
+    def render(self, level = 0, **kwargs):
+        for i,child in enumerate(self):
+            nodes.append(child.generate_condition_statement(else_keyword=bool(i)))
+            nodes.append(IndentedNode(child.toStack()))
+        nodes.append(MCondition.ENDIF)
+
     def __iter__(self):
         nodes:List[Node]=[]
-        for i,child in enumerate(self.children):
+        for i,child in enumerate(self):
             nodes.append(child.generate_condition_statement(else_keyword=bool(i)))
             nodes.append(IndentedNode(child.toStack()))
         nodes.append(MCondition.ENDIF)
         yield from self.iter_with_margin(*nodes)
 
-class MInclude(Text):
+class MInclude(TextNode):
     """
     Makefile include line.
 
