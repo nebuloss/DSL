@@ -1,8 +1,7 @@
 # ========= Text node hierarchy =========
 
 from abc import ABC
-from collections.abc import Iterator
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Iterator, Optional, Tuple
 
 from dsl.node import Line, Node
 

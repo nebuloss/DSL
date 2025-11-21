@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Self, Set, Tuple
-from collections.abc import Iterator
-
+from typing import Iterator, NamedTuple, Self, Set, Tuple
 
 class Line(NamedTuple):
     level: int
