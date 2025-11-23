@@ -70,6 +70,18 @@ from .block import (
     MConditionList
 )
 
+def any(*vars:MVar)->MExpr:
+    result=MConst.false()
+    for var in vars:
+        result|=var
+    return result
+
+def all(*vars:MVar)->MExpr:
+    result=MConst.true()
+    for var in vars:
+        result&=var
+    return result
+
 __all__ = [
     # lang
     "MElement",
@@ -138,5 +150,9 @@ __all__ = [
     "MRule",
     "MPhonyRule",
     "MDefaultRule",
-    "MAllRule"
+    "MAllRule",
+
+    #functions
+    "all",
+    "any"
 ]

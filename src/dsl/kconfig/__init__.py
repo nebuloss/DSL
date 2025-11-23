@@ -42,6 +42,17 @@ from .block import (
     KChoice,
 )
 
+def any(*vars:KVar)->KExpr:
+    result=KConst.false()
+    for var in vars:
+        result|=var
+    return result
+
+def all(*vars:KVar)->KExpr:
+    result=KConst.true()
+    for var in vars:
+        result&=var
+    return result
 
 __all__ = [
     # lang
@@ -82,4 +93,8 @@ __all__ = [
     "KIf",
     "KMenu",
     "KChoice",
+
+    #functions
+    "all",
+    "any"
 ]

@@ -295,11 +295,11 @@ class VarConst(VarExpr, ABC):
         return isinstance(x, cls) and x.val is False
 
     @classmethod
-    def true(cls) -> "VarConst":
+    def true(cls) -> Self:
         return cls(True)  # type: ignore[call-arg]
 
     @classmethod
-    def false(cls) -> "VarConst":
+    def false(cls) -> Self:
         return cls(False)  # type: ignore[call-arg]
 
 
