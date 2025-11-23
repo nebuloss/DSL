@@ -48,11 +48,19 @@ from .function import (
 )
 
 from .keyword import (
-    MIncludeKeyword as MInclude
+    MIncludeKeyword as MInclude,
+    MDefineKeyword,
+    MENDEF_KEYWORD,
+    MIfKeyword,
+    MIfDefKeyword,
+    MIfNDefKeyword,
+    MIfEqKeyword,
+    MIfNEqKeyword,
+    MELSE_KEYWORD,
+    MENDIF_KEYWORD
 )
 
 from .block import (
-    MDefine,
     MIf,
     MIfDef,
     MIfNDef,
@@ -104,6 +112,15 @@ __all__ = [
 
     # keyword
     "MInclude",
+    "MDefineKeyword",
+    "MIfKeyword",
+    "MIfDefKeyword",
+    "MIfNDefKeyword",
+    "MIfEqKeyword",
+    "MIfNEqKeyword",
+    "MENDEF_KEYWORD",
+    "MENDIF_KEYWORD",
+    "MELSE_KEYWORD",
 
     #block
     "MDefine",

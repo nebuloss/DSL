@@ -1,18 +1,14 @@
 # ===== Typed options: config / menuconfig =====
 
-from typing import Generic, Optional, TypeVar, Union
+from typing import Optional, Union
 from dsl.container import NodeBlock
 from dsl.content import TextNode
+from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
 from dsl.kconfig.core import KElement, KStringKey
 from dsl.kconfig.var import KConst, KExpr, KExpr, KVar
-from dsl.typing_utils import resolve_generic_type_arg
 
-
-ConstT = TypeVar("ConstT", bound=KConst)
-
-
-class KOption(NodeBlock[KElement,TextNode], Generic[ConstT]):
+class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
     """
     Generic typed symbol:
 
@@ -35,7 +31,7 @@ class KOption(NodeBlock[KElement,TextNode], Generic[ConstT]):
     ):
         self._name = name
         # Resolve ConstT from generics (like VarExpr does for OpsT)
-        self._const_type: type[KConst] = resolve_generic_type_arg(self,index=0,expected=KConst)
+        self._const_type:KConst=self.get_arg(0)
 
         if name is None:
             begin = TextNode(f"{keyword}")

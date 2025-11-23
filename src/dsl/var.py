@@ -5,17 +5,14 @@ from dataclasses import dataclass
 from typing import (
     Any,
     ClassVar,
-    Generic,
     List,
     Optional,
     Self,
     Tuple,
     Type,
-    TypeVar,
 )
 
-from .typing_utils import resolve_generic_type_arg
-
+from dsl.generic_args import GenericArgsMixin
 
 # =====================================================================
 # Language descriptor
@@ -49,23 +46,19 @@ class LanguageOps:
     Mul: Optional[Type["VarMul"]] = None
     Div: Optional[Type["VarDiv"]] = None
 
-
-OpsT = TypeVar("OpsT", bound=LanguageOps)
-
-
 # =====================================================================
 # Base expression
 # =====================================================================
 
 
-class VarExpr(Generic[OpsT],ABC):
+class VarExpr(GenericArgsMixin, ABC):
     """
     Generic expression node. Knows its LanguageOps via generics.
     Provides uniform operator dispatch that consults LanguageOps.
     """
 
     def __init__(self):
-        self.ops: Type[LanguageOps] = self._resolve_ops()
+        self.ops: Type[LanguageOps] = self.get_arg(0)
 
     # ---------- unified operator dispatch ----------
 
@@ -175,12 +168,6 @@ class VarExpr(Generic[OpsT],ABC):
     def __itruediv__(self, other: "VarExpr") -> "VarExpr":
         return type(self)._dispatch_binop(self, other, self.ops.Div)
 
-    # ---------- resolve LanguageOps from generics ----------
-
-    def _resolve_ops(self) -> Type["LanguageOps"]:
-        # First generic parameter, expected to be a subclass of LanguageOps
-        return resolve_generic_type_arg(self,index=0, expected=LanguageOps)
-
     # ---------- language consistency ----------
 
     def _check_same_ops(self, other: "VarExpr") -> None:
@@ -218,10 +205,10 @@ class VarExpr(Generic[OpsT],ABC):
 # Unary / Binary bases
 # =====================================================================
 
-class VarUnaryOp(VarExpr[OpsT], ABC):
+class VarUnaryOp(VarExpr, ABC):
     PREC: ClassVar[int] = 0
 
-    def __init__(self, child: VarExpr[OpsT]):
+    def __init__(self, child: VarExpr):
         self.child = child
         super().__init__()
         if self.ops is not child.ops:
@@ -232,10 +219,10 @@ class VarUnaryOp(VarExpr[OpsT], ABC):
         return self.PREC
 
 
-class VarBinaryOp(VarExpr[OpsT], ABC):
+class VarBinaryOp(VarExpr, ABC):
     PREC: ClassVar[int] = 0
 
-    def __init__(self, left: VarExpr[OpsT], right: VarExpr[OpsT]):
+    def __init__(self, left: VarExpr, right: VarExpr):
         self.left = left
         self.right = right
         super().__init__()
@@ -247,7 +234,7 @@ class VarBinaryOp(VarExpr[OpsT], ABC):
         return self.PREC
 
     @staticmethod
-    def is_negation_pair(a: "VarExpr[OpsT]", b: "VarExpr[OpsT]") -> bool:
+    def is_negation_pair(a: "VarExpr", b: "VarExpr") -> bool:
         ak = a.key()
         bk = b.key()
         return ak == ("not", bk) or bk == ("not", ak)
@@ -255,10 +242,10 @@ class VarBinaryOp(VarExpr[OpsT], ABC):
     @classmethod
     def rebuild_sorted(
         cls,
-        terms: List["VarExpr[OpsT]"],
-        empty_val: "VarExpr[OpsT]",
-        op_cls: Type["VarBinaryOp[OpsT]"],
-    ) -> "VarExpr[OpsT]":
+        terms: List["VarExpr"],
+        empty_val: "VarExpr",
+        op_cls: Type["VarBinaryOp"],
+    ) -> "VarExpr":
         if not terms:
             return empty_val
         if len(terms) == 1:
@@ -270,7 +257,7 @@ class VarBinaryOp(VarExpr[OpsT], ABC):
                 raise TypeError("Mixed LanguageOps in rebuild")
 
         terms_sorted = sorted(terms, key=lambda e: e.key())
-        acc: VarExpr[OpsT] = terms_sorted[0]
+        acc: VarExpr = terms_sorted[0]
         for t in terms_sorted[1:]:
             acc = op_cls(acc, t)  # type: ignore[arg-type]
         return acc
@@ -280,7 +267,7 @@ class VarBinaryOp(VarExpr[OpsT], ABC):
 # Leaves
 # =====================================================================
 
-class VarConst(VarExpr[OpsT], ABC):
+class VarConst(VarExpr, ABC):
     """
     Constant node. Concrete languages implement __str__.
     No arithmetic here. Use LanguageOps Add/Sub/Mul/Div to enable math or concat.
@@ -293,30 +280,30 @@ class VarConst(VarExpr[OpsT], ABC):
     def key(self) -> Tuple[Any, ...]:
         return ("const", self.val)
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self
 
     def __len__(self) -> int:
         return 0
 
     @classmethod
-    def isTrue(cls, x: "VarExpr[OpsT]") -> bool:
+    def isTrue(cls, x: "VarExpr") -> bool:
         return isinstance(x, cls) and x.val is True
 
     @classmethod
-    def isFalse(cls, x: "VarExpr[OpsT]") -> bool:
+    def isFalse(cls, x: "VarExpr") -> bool:
         return isinstance(x, cls) and x.val is False
 
     @classmethod
-    def true(cls) -> "VarConst[OpsT]":
+    def true(cls) -> "VarConst":
         return cls(True)  # type: ignore[call-arg]
 
     @classmethod
-    def false(cls) -> "VarConst[OpsT]":
+    def false(cls) -> "VarConst":
         return cls(False)  # type: ignore[call-arg]
 
 
-class VarName(VarExpr[OpsT], ABC):
+class VarName(VarExpr, ABC):
     """
     Variable reference. Concrete languages may override normalize.
     """
@@ -341,7 +328,7 @@ class VarName(VarExpr[OpsT], ABC):
     def key(self) -> Tuple[Any, ...]:
         return ("name", self._name)
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self
 
     def __len__(self) -> int:
@@ -354,7 +341,7 @@ class VarName(VarExpr[OpsT], ABC):
         return type(self)(f"{self.name}_{suffix}")
 
 
-class VarNull(VarExpr[OpsT], ABC):
+class VarNull(VarExpr, ABC):
     """
     Singleton sentinel node for "no expression".
 
@@ -362,9 +349,9 @@ class VarNull(VarExpr[OpsT], ABC):
     Each concrete VarNull subclass is a singleton.
     """
 
-    _instance: Optional["VarNull[OpsT]"] = None
+    _instance: Optional["VarNull"] = None
 
-    def __new__(cls) -> "VarNull[OpsT]":
+    def __new__(cls) -> "VarNull":
         if cls is VarNull:
             raise TypeError("VarNull must be subclassed per language")
         if cls._instance is None:
@@ -375,13 +362,13 @@ class VarNull(VarExpr[OpsT], ABC):
         super().__init__()
 
     @classmethod
-    def isNull(cls, expr: "VarExpr[OpsT]") -> bool:
+    def isNull(cls, expr: "VarExpr") -> bool:
         return isinstance(expr, cls)
 
     def key(self) -> Tuple[Any, ...]:
         return ("null",)
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self
 
     def __len__(self) -> int:
@@ -396,13 +383,13 @@ class VarNull(VarExpr[OpsT], ABC):
 # Logic
 # =====================================================================
 
-class VarNot(VarUnaryOp[OpsT], ABC):
+class VarNot(VarUnaryOp, ABC):
     PREC = 3
 
     def key(self) -> Tuple[Any, ...]:
         return ("not", self.child.key())
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         c = self.child
 
         if self.ops.Const.isTrue(c):
@@ -425,7 +412,7 @@ class VarNot(VarUnaryOp[OpsT], ABC):
         return len(self.child)
 
 
-class VarAnd(VarBinaryOp[OpsT], ABC):
+class VarAnd(VarBinaryOp, ABC):
     PREC = 2
 
     def key(self) -> Tuple[Any, ...]:
@@ -433,7 +420,7 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         keys = sorted(t.key() for t in flat)
         return ("and", tuple(keys))
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         left = self.left
         right = self.right
 
@@ -467,11 +454,11 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         return len(self.left) + len(self.right)
 
     # helpers use self.ops directly
-    def _flatten_terms(self, a: VarExpr[OpsT], b: VarExpr[OpsT]) -> List[VarExpr[OpsT]]:
-        items: List[VarExpr[OpsT]] = []
+    def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
+        items: List[VarExpr] = []
         seen = set()
 
-        def add(e: VarExpr[OpsT]) -> None:
+        def add(e: VarExpr) -> None:
             if self.ops.Const.isTrue(e):
                 return
             k = e.key()
@@ -479,7 +466,7 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
                 seen.add(k)
                 items.append(e)
 
-        def walk(e: VarExpr[OpsT]) -> None:
+        def walk(e: VarExpr) -> None:
             if isinstance(e, self.ops.And):
                 walk(e.left)
                 walk(e.right)
@@ -490,7 +477,7 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         walk(b)
         return items
 
-    def _detect_contradiction(self, terms: List[VarExpr[OpsT]]) -> Optional[VarExpr[OpsT]]:
+    def _detect_contradiction(self, terms: List[VarExpr]) -> Optional[VarExpr]:
         keys = {t.key() for t in terms}
         for t in terms:
             if isinstance(t, self.ops.Not) and t.child.key() in keys:
@@ -499,25 +486,25 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
                 return self.ops.Const.false()
         return None
 
-    def _absorption_with_or(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
+    def _absorption_with_or(self, terms: List[VarExpr]) -> List[VarExpr]:
         if not terms:
             return terms
         base = {t.key() for t in terms}
-        kept: List[VarExpr[OpsT]] = []
+        kept: List[VarExpr] = []
         for t in terms:
             if isinstance(t, self.ops.Or) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
 
-    def _negated_absorption_with_or(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
+    def _negated_absorption_with_or(self, terms: List[VarExpr]) -> List[VarExpr]:
         if len(terms) <= 1:
             return terms
 
         base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
         base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
 
-        new_terms: List[VarExpr[OpsT]] = []
+        new_terms: List[VarExpr] = []
         changed = False
 
         for t in terms:
@@ -539,7 +526,7 @@ class VarAnd(VarBinaryOp[OpsT], ABC):
         return new_terms if changed else terms
 
 
-class VarOr(VarBinaryOp[OpsT], ABC):
+class VarOr(VarBinaryOp, ABC):
     PREC = 1
 
     def key(self) -> Tuple[Any, ...]:
@@ -547,7 +534,7 @@ class VarOr(VarBinaryOp[OpsT], ABC):
         keys = sorted(t.key() for t in flat)
         return ("or", tuple(keys))
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         left = self.left
         right = self.right
 
@@ -581,11 +568,11 @@ class VarOr(VarBinaryOp[OpsT], ABC):
         return len(self.left) + len(self.right)
 
     # helpers use self.ops directly
-    def _flatten_terms(self, a: VarExpr[OpsT], b: VarExpr[OpsT]) -> List[VarExpr[OpsT]]:
-        items: List[VarExpr[OpsT]] = []
+    def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
+        items: List[VarExpr] = []
         seen = set()
 
-        def add(e: VarExpr[OpsT]) -> None:
+        def add(e: VarExpr) -> None:
             if self.ops.Const.isFalse(e):
                 return
             k = e.key()
@@ -593,7 +580,7 @@ class VarOr(VarBinaryOp[OpsT], ABC):
                 seen.add(k)
                 items.append(e)
 
-        def walk(e: VarExpr[OpsT]) -> None:
+        def walk(e: VarExpr) -> None:
             if isinstance(e, self.ops.Or):
                 walk(e.left)
                 walk(e.right)
@@ -604,7 +591,7 @@ class VarOr(VarBinaryOp[OpsT], ABC):
         walk(b)
         return items
 
-    def _detect_tautology(self, terms: List[VarExpr[OpsT]]) -> Optional[VarExpr[OpsT]]:
+    def _detect_tautology(self, terms: List[VarExpr]) -> Optional[VarExpr]:
         keys = {t.key() for t in terms}
         for t in terms:
             if isinstance(t, self.ops.Not) and t.child.key() in keys:
@@ -613,25 +600,25 @@ class VarOr(VarBinaryOp[OpsT], ABC):
                 return self.ops.Const.true()
         return None
 
-    def _absorption_with_and(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
+    def _absorption_with_and(self, terms: List[VarExpr]) -> List[VarExpr]:
         if not terms:
             return terms
         base = {t.key() for t in terms}
-        kept: List[VarExpr[OpsT]] = []
+        kept: List[VarExpr] = []
         for t in terms:
             if isinstance(t, self.ops.And) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
 
-    def _negated_absorption_with_and(self, terms: List[VarExpr[OpsT]]) -> List[VarExpr[OpsT]]:
+    def _negated_absorption_with_and(self, terms: List[VarExpr]) -> List[VarExpr]:
         if len(terms) <= 1:
             return terms
 
         base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
         base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
 
-        new_terms: List[VarExpr[OpsT]] = []
+        new_terms: List[VarExpr] = []
         changed = False
 
         for t in terms:
@@ -657,41 +644,41 @@ class VarOr(VarBinaryOp[OpsT], ABC):
 # Arithmetic and concat operator base classes
 # =====================================================================
 
-class VarAdd(VarBinaryOp[OpsT], ABC):
+class VarAdd(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 4
 
     def key(self) -> Tuple[Any, ...]:
         return ("add", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self  # type: ignore[call-arg]
 
 
-class VarSub(VarBinaryOp[OpsT], ABC):
+class VarSub(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 4
 
     def key(self) -> Tuple[Any, ...]:
         return ("sub", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self  # type: ignore[call-arg]
 
 
-class VarMul(VarBinaryOp[OpsT], ABC):
+class VarMul(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 5
 
     def key(self) -> Tuple[Any, ...]:
         return ("mul", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self  # type: ignore[call-arg]
 
 
-class VarDiv(VarBinaryOp[OpsT], ABC):
+class VarDiv(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 5
 
     def key(self) -> Tuple[Any, ...]:
         return ("div", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr[OpsT]":
+    def simplify(self) -> "VarExpr":
         return self

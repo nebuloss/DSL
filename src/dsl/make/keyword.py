@@ -1,20 +1,24 @@
-from abc import ABC, abstractmethod
 from typing import List, cast
 
 from dsl.content import FixedTextNode
+from dsl.generic_args import GenericArgsMixin
 from dsl.make.var import MExpr, MVar
 
 
-class MKeyword(FixedTextNode):
+class MKeyword(FixedTextNode,GenericArgsMixin):
     """
     Simple fixed keyword node.
     The text passed here is the full line content.
     """
 
-    def __init__(self, text: str) -> None:
+    def __init__(self,*args:str) -> None:
         # Extract the keyword from the first token of the text
-        parts = text.split(" ", maxsplit=1)
-        self._name = parts[0] if parts else ""
+        self._name=self.get_arg(0)
+        self._args=args
+        if args:
+            text=f"{self._name} {" ".join(self._args)}"
+        else:
+            text=self._name
         super().__init__(text, level=0)
 
     @property
@@ -24,43 +28,23 @@ class MKeyword(FixedTextNode):
         (for example "ifdef", "ifeq", "include", "define", "else").
         """
         return self._name
-
-class MArgsKeyword(MKeyword, ABC):
-    """
-    Base keyword that takes arguments.
-    Subclasses define how arguments are formatted in format_args.
-    """
-
-    def __init__(self, keyword: str, *args: MExpr) -> None:
-        self._args: List[MExpr] = list(args)
-
-        if args:
-            full_text = keyword + " " + self.format_args(*args)
-        else:
-            full_text = keyword
-
-        super().__init__(full_text)
-
-    @staticmethod
-    @abstractmethod
-    def format_args(*args: MExpr) -> str:
-        """
-        Convert arguments to their string representation on the Makefile line.
-        """
-        raise NotImplementedError
-
+    
     @property
-    def args(self) -> List[MExpr]:
+    def args(self)->List[str]:
         return self._args
+    
+class MSingleKeyword(MKeyword):
+    def __init__(self):
+        super().__init__()
 
 
-class MDefineKeyword(MArgsKeyword):
+class MDefineKeyword(MKeyword["define"]):
     """
     "define VAR" keyword. Accepts exactly one MVar argument.
     """
 
     def __init__(self, var: MVar) -> None:
-        super().__init__("define", var)
+        super().__init__(str(var))
 
     @staticmethod
     def format_args(*args: MExpr) -> str:
@@ -72,7 +56,7 @@ class MDefineKeyword(MArgsKeyword):
         return cast(MVar, val).name
 
 
-class MIncludeKeyword(MArgsKeyword):
+class MIncludeKeyword(MKeyword["include"]):
     """
     Makefile include line.
 
@@ -82,46 +66,17 @@ class MIncludeKeyword(MArgsKeyword):
     """
 
     def __init__(self, *args: MExpr) -> None:
-        super().__init__("include", *args)
+        super().__init__("include", *(self.format_args(arg) for arg in args))
 
     @staticmethod
     def format_args(*args: MExpr) -> str:
         return " ".join(str(arg).replace(" ", r"\ ") for arg in args)
 
 
-class MConditionKeyword(MArgsKeyword):
+class MConditionKeyword(MKeyword):
     """
     Base class for conditional directives: if, ifdef, ifndef, ifeq, ifneq, else, and else-prefixed variants.
     """
-
-    def __init__(self, keyword: str, *args: MExpr) -> None:
-        if not keyword:
-            raise ValueError("Empty condition keyword is not allowed")
-        super().__init__(keyword, *args)
-
-    @staticmethod
-    def format_args(*args: MExpr) -> str:
-        """
-        Default formatting rules:
-
-        - 0 args: "" (used for "else")
-        - 1 arg: variable name if MVar, otherwise str(expr)
-        - 2 args: "(a,b)" with both converted to string
-        """
-        if not args:
-            return ""
-
-        if len(args) == 1:
-            arg = args[0]
-            if isinstance(arg, MVar):
-                return arg.name
-            return str(arg)
-
-        if len(args) == 2:
-            left, right = args
-            return "(" + ",".join(str(x) for x in (left, right)) + ")"
-
-        raise ValueError("Condition keywords accept at most two arguments")
 
     def with_else_prefix(self) -> "MConditionKeyword":
         """
@@ -142,4 +97,29 @@ class MConditionKeyword(MArgsKeyword):
         else:
             new_keyword = "else " + name
 
-        return MConditionKeyword(new_keyword, *self.args)
+        return MConditionKeyword[new_keyword](*self.args)
+
+class MSingleConditionKeyword(MConditionKeyword):
+    def __init__(self,cond: MExpr):
+        if isinstance(cond, MVar):
+            arg=cond.name
+        else:
+            arg=str(cond)
+        super().__init__(arg)
+
+class MDoubleConditionKeyword(MConditionKeyword):
+    def __init__(self, left: MExpr, right: MExpr):
+        arg="(" + ",".join(str(x) for x in (left, right)) + ")"
+        super().__init__(arg)
+
+
+MELSE_KEYWORD=MConditionKeyword["else"]()
+MENDIF_KEYWORD=MSingleKeyword["endif"]()
+MENDEF_KEYWORD=MSingleKeyword["endef"]()
+
+MIfKeyword=MSingleConditionKeyword["if"]
+MIfDefKeyword=MSingleConditionKeyword["ifdef"]
+MIfNDefKeyword=MSingleConditionKeyword["ifndef"]
+
+MIfEqKeyword=MDoubleConditionKeyword["ifeq"]
+MIfNEqKeyword=MDoubleConditionKeyword["ifneq"]

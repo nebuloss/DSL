@@ -1,11 +1,11 @@
 from typing import Generic, Iterator, TypeVar
 from dsl.container import DelimitedNodeBlock, NodeStack, SimpleNodeStack
 from dsl.make.core import MElement, Makefile
-from dsl.make.keyword import MConditionKeyword, MDefineKeyword, MKeyword
+from dsl.make.keyword import MELSE_KEYWORD, MENDEF_KEYWORD, MENDIF_KEYWORD, MConditionKeyword, MDefineKeyword, MIfDefKeyword, MIfEqKeyword, MIfKeyword, MIfNDefKeyword, MIfNEqKeyword, MKeyword
 from dsl.make.var import MExpr, MVar
 from dsl.node import Node
 
-TBlockHeader = TypeVar("TChildHeader", bound=MKeyword)
+TBlockHeader = TypeVar("TBlockHeader", bound=MKeyword)
 
 class MBlock(DelimitedNodeBlock[MElement,TBlockHeader,MKeyword],Generic[TBlockHeader]):
     def __init__(self, begin:TBlockHeader, end:MKeyword, *children:MElement):
@@ -20,39 +20,39 @@ class MDefine(MBlock[MDefineKeyword]):
     def __init__(self, name:MVar , *children):
         super().__init__(
             MDefineKeyword(name),
-            MKeyword("endef"),
+            MENDEF_KEYWORD,
             *children
         )
 
-class MCondition(MBlock[MElement]):
+class MCondition(MBlock[MConditionKeyword]):
     def __init__(self, begin: MConditionKeyword, *children:MElement):
-        super().__init__(begin, MKeyword("endif"), *children)
+        super().__init__(begin, MENDIF_KEYWORD, *children)
 
 class MIf(MCondition):
     def __init__(self, var: MVar, *body: MElement):
         super().__init__(
-            MConditionKeyword("if",var),
+            MIfKeyword(var),
             *body
         )
 
 class MIfDef(MCondition):
     def __init__(self, var: MVar, *body: MElement):
         super().__init__(
-            MConditionKeyword("ifdef",var),
+            MIfDefKeyword(var),
             *body
         )
 
 class MIfNDef(MCondition):
     def __init__(self, var: MVar, *body: MElement):
         super().__init__(
-            MConditionKeyword("ifndef",var),
+            MIfNDefKeyword(var),
             *body
         )
 
 class MIfEq(MCondition):
     def __init__(self, a:MExpr, b:MExpr, *body: MElement):
         super().__init__(
-        MConditionKeyword("ifeq",a,b),
+        MIfEqKeyword(a,b),
         *body
     )
 
@@ -60,14 +60,14 @@ class MIfEq(MCondition):
 class MIfNEq(MCondition):
     def __init__(self, a:MExpr, b:MExpr, *body: MElement):
         super().__init__(
-        MConditionKeyword("ifneq",a,b),
+        MIfNEqKeyword(a,b),
         *body
     )
 
 
 class MElse(MCondition):
     def __init__(self, *children):
-        super().__init__(MConditionKeyword("else"), *children)
+        super().__init__(MELSE_KEYWORD, *children)
 
 
 class MConditionList(NodeStack[MCondition]):
@@ -75,7 +75,7 @@ class MConditionList(NodeStack[MCondition]):
         super().__init__(*children, margin=Makefile.MARGIN)
 
     def iter_without_margin(self)->Iterator[Node]:
-        it=SimpleNodeStack[MCondition].__iter__(self)
+        it=SimpleNodeStack.__iter__(self)
         first=next(it,None)
 
         if first is None:

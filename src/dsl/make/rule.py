@@ -2,12 +2,12 @@
 
 from typing import Any, Dict, Literal, Optional, Union
 from dsl.container import NodeBlock
-from dsl.content import NullNode, TextNode
+from dsl.content import TextNode
 from dsl.make.core import MCommand
 from dsl.make.var import MExpr
 
 
-class MRule(NodeBlock[MCommand,TextNode,NullNode]):
+class MRule(NodeBlock[MCommand,TextNode]):
     """
     Builds exactly:
 

@@ -1,16 +1,12 @@
 from abc import ABC
 from copy import copy
 from types import GenericAlias
-from typing import Generic, Iterable, Iterator, List, Optional, Self, Type, TypeVar
+from typing import Generic, Iterable, Iterator, List, Optional, Self, Type, get_args
 
 from dsl.content import NULL_NODE
 from dsl.node import Line, Node
-from .typing_utils import resolve_generic_type_arg
 
-TChild = TypeVar("TChild", bound=Node)
-
-
-class ContainerNode(Node, Generic[TChild], ABC):
+class ContainerNode[TChild: Node](Node, ABC):
     """
     Base class for containers of child nodes with a single child type.
 
@@ -22,52 +18,12 @@ class ContainerNode(Node, Generic[TChild], ABC):
 
     def __init__(self) -> None:
         super().__init__()
-        self._child_type: Type[TChild] = resolve_generic_type_arg(
-            self,
-            index=0,
-            expected=Node,
-        )
-
-    @property
-    def child_type(self) -> Type[TChild]:
-        return self._child_type
-
-    @staticmethod
-    def ensure_type(value: object, expected: Type[Node]) -> Node:
-        if not isinstance(value, expected):
-            raise TypeError(
-                f"Expected {expected.__name__}, got {type(value).__name__}"
-            )
-        return value  # type: ignore[return-value]
-
-    def ensure_child_type(self, value: object) -> TChild:
-        return self.ensure_type(value, self._child_type)  # type: ignore[return-value]
-
-    def __class_getitem__(cls, item):
-        """
-        Support ContainerNode[T] (and subclasses) by creating
-        a subclass whose __orig_bases__ contains GenericAlias(cls, (T,)).
-        """
-        args=item if isinstance(item,tuple) else (item,)
-#        print(f"getitem={args}")
-
-        alias = GenericAlias(cls, args)
-
-        arg_names = ", ".join(
-            getattr(a, "__name__", repr(a)) for a in args
-        )
-        name = f"{cls.__name__}[{arg_names}]"
-
-        namespace = dict(cls.__dict__)
-        namespace["__orig_bases__"] = (alias,)
-
-        return type(name, (cls,), namespace)
     
     def render(self, level: int = 0) -> Iterator[Line]:
         for child in self:
             yield from child.render(level)            
 
-class SimpleNodeStack(ContainerNode[TChild]):
+class SimpleNodeStack[TChild: Node](ContainerNode[TChild]):
     """
     Simple vertical container without margins.
     Renders children one after another in order.
@@ -81,8 +37,7 @@ class SimpleNodeStack(ContainerNode[TChild]):
     # ---- mutation ----
 
     def append(self, child: TChild) -> Self:
-        checked = self.ensure_child_type(child)
-        self._children.append(checked)
+        self._children.append(child)
         return self
 
     __iadd__ = append
@@ -145,7 +100,7 @@ class SimpleNodeStack(ContainerNode[TChild]):
 
     # ---- layout ----
 
-class NodeStack(SimpleNodeStack[TChild]):
+class NodeStack[TChild: Node](SimpleNodeStack[TChild]):
     """
     Vertical container with optional inner / outer margin nodes.
 
@@ -161,7 +116,7 @@ class NodeStack(SimpleNodeStack[TChild]):
         margin: Node = NULL_NODE,
     ):
         super().__init__(*children)
-        self._margin=self.ensure_type(margin,Node)
+        self._margin:Node=margin
 
     @property
     def inner(self) -> Node:
@@ -185,7 +140,7 @@ class NodeStack(SimpleNodeStack[TChild]):
     def __iter__(self)->Iterator[Node]:
         yield from self.iter_with_margin(*SimpleNodeStack.__iter__(self))
 
-class IndentedNodeStack(SimpleNodeStack[TChild]):
+class IndentedNodeStack[TChild: Node](SimpleNodeStack[TChild]):
     def __init__(self, *children,level:int=1):
         super().__init__(*children)
         self._level=1
@@ -193,9 +148,7 @@ class IndentedNodeStack(SimpleNodeStack[TChild]):
     def render(self, level = 0):
         yield from super().render(level+self._level)
 
-TBegin = TypeVar("TBegin", bound=Node)
-
-class NodeBlock(NodeStack[TChild], Generic[TChild, TBegin]):
+class NodeBlock[TChild:Node,TBegin: Node](NodeStack[TChild]):
 
     def __init__(
         self,
@@ -203,10 +156,8 @@ class NodeBlock(NodeStack[TChild], Generic[TChild, TBegin]):
         *children: TChild,
         margin:Node=NULL_NODE
     ):
-        # Resolve type parameters for begin and end if generics are used
-        self._begin_type: Type[Node] = resolve_generic_type_arg(self, index=1, expected=Node)
         # Type-check begin / end according to TBegin / TEnd
-        self._begin: TBegin = self.ensure_type(begin, self._begin_type)  # type: ignore[assignment]
+        self._begin: TBegin = begin
         
         super().__init__(*children, margin=margin)
 
@@ -220,13 +171,11 @@ class NodeBlock(NodeStack[TChild], Generic[TChild, TBegin]):
     def __iter__(self) -> Iterable[Node]:
         yield from self.iter_with_margin(self.begin,self.inner()) 
 
-TEnd = TypeVar("TEnd", bound=Node)
 
-class DelimitedNodeBlock(NodeBlock[TChild,TBegin],Generic[TEnd]):
+class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,TBegin]):
     def __init__(self, begin: TBegin, end: TEnd, *children: TChild, margin = NULL_NODE):
         super().__init__(begin, *children, margin=margin)
-        self._end_type: Type[Node] = resolve_generic_type_arg(self, index=2, expected=Node)
-        self._end: TEnd = self.ensure_type(end, self._end_type)          # type: ignore[assignment]
+        self._end: TEnd = end       # type: ignore[assignment]
 
     @property
     def end(self)->TEnd:
@@ -235,7 +184,7 @@ class DelimitedNodeBlock(NodeBlock[TChild,TBegin],Generic[TEnd]):
     def __iter__(self)->Iterator[Node]:
         yield from self.iter_with_margin(self.begin,NodeBlock.inner(self),self.end)
 
-class WordAlignedStack(NodeStack[TChild]):
+class WordAlignedStack[TChild:Node](NodeStack[TChild]):
     """
     Align children on word boundaries.
 
