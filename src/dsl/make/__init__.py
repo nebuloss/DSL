@@ -70,15 +70,15 @@ from .block import (
     MConditionList
 )
 
-def any(*vars:MVar)->MExpr:
+def any(*exprs:MExpr)->MExpr:
     result=MConst.false()
-    for var in vars:
+    for var in exprs:
         result|=var
     return result
 
-def all(*vars:MVar)->MExpr:
+def all(*exprs:MExpr)->MExpr:
     result=MConst.true()
-    for var in vars:
+    for var in exprs:
         result&=var
     return result
 

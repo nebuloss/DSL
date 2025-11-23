@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 
 from dsl import (
     LanguageOps,
@@ -25,7 +24,7 @@ class KconfigOps(LanguageOps):
 
 KExpr = VarExpr
 
-class KConst(VarConst[KconfigOps], ABC):
+class KConst(VarConst[KconfigOps]):
     """
     Abstract base Kconfig constant.
 
@@ -35,9 +34,11 @@ class KConst(VarConst[KconfigOps], ABC):
     """
 
     @classmethod
-    @abstractmethod
     def typename(cls) -> str:
-        raise NotImplemented
+        return "generic"
+    
+    def __str__(self):
+        return "y" if bool(self.val) else "n"
 
 class KVar(VarName[KconfigOps]):
     @staticmethod

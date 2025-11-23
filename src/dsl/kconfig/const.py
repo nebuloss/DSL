@@ -23,15 +23,7 @@ class KConstBool(KConst):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return "y" if bool(self.val) else "n"
-
-    @classmethod
-    def true(cls) -> "KConstBool":
-        return KConstBool(True)
-
-    @classmethod
-    def false(cls) -> "KConstBool":
-        return KConstBool(False)
+        return super().__str__()
 
     @classmethod
     def typename(cls) -> str:

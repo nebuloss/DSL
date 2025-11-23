@@ -42,15 +42,15 @@ from .block import (
     KChoice,
 )
 
-def any(*vars:KVar)->KExpr:
+def any(*exprs:KExpr)->KExpr:
     result=KConst.false()
-    for var in vars:
+    for var in exprs:
         result|=var
     return result
 
-def all(*vars:KVar)->KExpr:
+def all(*exprs:KExpr)->KExpr:
     result=KConst.true()
-    for var in vars:
+    for var in exprs:
         result&=var
     return result
 
