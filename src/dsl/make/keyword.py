@@ -66,7 +66,7 @@ class MIncludeKeyword(MKeyword["include"]):
     """
 
     def __init__(self, *args: MExpr) -> None:
-        super().__init__("include", *(self.format_args(arg) for arg in args))
+        super().__init__(*(self.format_args(arg) for arg in args))
 
     @staticmethod
     def format_args(*args: MExpr) -> str:
