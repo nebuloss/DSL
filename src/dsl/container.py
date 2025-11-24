@@ -262,7 +262,7 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
                 merged[-1] = merged[-1] + tok
             else:
                 merged.append(tok)
-        print(f"text={text} merged={merged}")
+#        print(f"text={text} merged={merged}")
         return merged
 
     def _align_group(self, group: List["Line"]) -> Iterable["Line"]:
