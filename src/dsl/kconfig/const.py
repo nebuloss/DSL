@@ -1,7 +1,30 @@
+from abc import abstractmethod
 from typing import Any, Union
 
-from dsl.kconfig.var import KConst
+from dsl.kconfig.var import KconfigOps
+from dsl.var import VarConst
 
+class KConst(VarConst[KconfigOps]):
+    """
+    Abstract base Kconfig constant.
+
+    Subclasses (KConstBool, KConstInt, KConstString, KConstHex) perform
+    validation and normalisation. This class should not be instantiated
+    directly.
+    """
+
+    @classmethod
+    @abstractmethod
+    def typename(cls) -> str:
+        raise NotImplementedError
+    
+    @staticmethod
+    def true() -> "KConstBool":
+        return KConstBool(True)
+
+    @staticmethod
+    def false() -> "KConstBool":
+        return KConstBool(False)
 
 class KConstBool(KConst):
 
@@ -23,7 +46,7 @@ class KConstBool(KConst):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return super().__str__()
+        return "y" if bool(self.val) else "n"
 
     @classmethod
     def typename(cls) -> str:

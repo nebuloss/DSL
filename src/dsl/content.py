@@ -78,7 +78,7 @@ class TextNode(GenericTextNode):
 
     def render(self, level: int = 0) -> Iterator[Line]:
         lvl = max(0, int(level))
-        for value in self._lines:
+        for value in self.lines:
             yield Line(lvl, value)
 
 
@@ -98,6 +98,6 @@ class FixedTextNode(GenericTextNode):
 
     def render(self, level: int = 0) -> Iterator[Line]:
         lvl = self._fixed_level
-        for value in self._lines:
+        for value in self.lines:
             yield Line(lvl, value)
 

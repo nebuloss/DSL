@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-
 from dsl import (
     LanguageOps,
     VarExpr,
-    VarConst,
     VarName,
     VarNot,
     VarAnd,
@@ -23,22 +21,6 @@ class KconfigOps(LanguageOps):
 # ---------- Concrete Kconfig nodes ----------
 
 KExpr = VarExpr
-
-class KConst(VarConst[KconfigOps]):
-    """
-    Abstract base Kconfig constant.
-
-    Subclasses (KConstBool, KConstInt, KConstString, KConstHex) perform
-    validation and normalisation. This class should not be instantiated
-    directly.
-    """
-
-    @classmethod
-    def typename(cls) -> str:
-        return "generic"
-    
-    def __str__(self):
-        return "y" if bool(self.val) else "n"
 
 class KVar(VarName[KconfigOps]):
     @staticmethod
@@ -83,6 +65,7 @@ class KOr(VarOr[KconfigOps]):
 
 
 # ---------- Fill KconfigOps table ----------
+from .const import KConst
 
 KconfigOps.Const = KConst
 KconfigOps.Name = KExpr

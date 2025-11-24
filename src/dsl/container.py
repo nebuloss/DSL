@@ -1,12 +1,11 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from copy import copy
-from types import GenericAlias
-from typing import Generic, Iterable, Iterator, List, Optional, Self, Type, get_args
+from typing import Iterable, Iterator, List, Optional, Self
 
 from dsl.content import NULL_NODE
 from dsl.node import Line, Node
 
-class ContainerNode[TChild: Node](Node, ABC):
+class ContainerNode(Node):
     """
     Base class for containers of child nodes with a single child type.
 
@@ -18,12 +17,23 @@ class ContainerNode[TChild: Node](Node, ABC):
 
     def __init__(self) -> None:
         super().__init__()
+
+    @abstractmethod
+    def __iter__(self) -> Iterator["Node"]:
+        """
+        Iterate over direct children of this node.
+        Leaf nodes should return an empty iterator.
+        """
+        raise NotImplementedError
+
+    def empty(self) -> bool:
+        return next(iter(self), None) is None
     
     def render(self, level: int = 0) -> Iterator[Line]:
         for child in self:
-            yield from child.render(level)            
+            yield from child.render(level)
 
-class SimpleNodeStack[TChild: Node](ContainerNode[TChild]):
+class SimpleNodeStack[TChild: Node](ContainerNode):
     """
     Simple vertical container without margins.
     Renders children one after another in order.

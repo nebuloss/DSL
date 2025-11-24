@@ -29,17 +29,6 @@ class Node(ABC):
     def __str__(self) -> str:
         return "\n".join(str(line) for line in self.render())
 
-    @abstractmethod
-    def __iter__(self) -> Iterator["Node"]:
-        """
-        Iterate over direct children of this node.
-        Leaf nodes should return an empty iterator.
-        """
-        ...
-
-    def empty(self) -> bool:
-        return next(iter(self), None) is None
-
     # ---- tag feature ----
 
     @property
