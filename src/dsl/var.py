@@ -328,10 +328,6 @@ class VarName(VarExpr, ABC):
         # You can add more here later if you want (for example tabs)
         s = s.replace(" ", "_").replace("-", "_")
 
-        # First character must not be a digit
-        if s[0].isdigit():
-            raise ValueError("Variable name cannot start with a digit")
-
         # Check for any remaining illegal characters
         m = cls._ILLEGAL_CHAR_RE.search(s)
         if m:

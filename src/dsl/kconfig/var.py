@@ -27,6 +27,9 @@ class KVar(VarName[KconfigOps]):
     def normalize(name: str) -> str:
         # Use VarName normalization, then uppercase for Kconfig style
         base = VarName.normalize(name)
+        # First character must not be a digit
+        if base[0].isdigit():
+            raise ValueError("Variable name cannot start with a digit")
         return base.upper().replace(".","_")
 
     def __str__(self) -> str:
