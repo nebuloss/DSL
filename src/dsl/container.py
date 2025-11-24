@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from copy import copy
+import re
 from typing import Iterable, Iterator, List, Optional, Self
 
 from dsl.content import NULL_NODE
@@ -194,12 +195,12 @@ class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,T
     def __iter__(self)->Iterator[Node]:
         yield from self.iter_with_margin(self.begin,NodeBlock.inner(self),self.end)
 
-class WordAlignedStack[TChild:Node](NodeStack[TChild]):
+class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
     """
     Align children on word boundaries.
 
     For each rendered line:
-    - Use Line.value (string) and split on whitespace into words.
+    - Use Line.value (string) and split into "words" using _split_words.
     - Columns are sized by the widest word in each column.
     - Only existing words are padded, then rejoined.
 
@@ -207,10 +208,23 @@ class WordAlignedStack[TChild:Node](NodeStack[TChild]):
     same indentation level.
     """
 
+    # Match either:
+    #  - double quoted string with possible escapes
+    #  - single quoted string with possible escapes
+    #  - any other run of non-whitespace characters
+    _WORD_PATTERN = re.compile(
+        r"""
+        "[^"\\]*(?:\\.[^"\\]*)*"     # double-quoted string
+    | '[^'\\]*(?:\\.[^'\\]*)*'     # single-quoted string
+    | [^\s]+                       # other non-whitespace
+        """,
+        re.VERBOSE
+    )
+
     def __init__(
         self,
         *children: TChild,
-        margin:Node=NULL_NODE,
+        margin: "Node" = NULL_NODE,
         limit: Optional[int] = None,
     ):
         super().__init__(*children, margin=margin)
@@ -220,7 +234,38 @@ class WordAlignedStack[TChild:Node](NodeStack[TChild]):
     def limit(self) -> Optional[int]:
         return self._limit
 
-    def _align_group(self, group: List[Line]) -> Iterable[Line]:
+    @classmethod
+    def _split_words(cls,text: str) -> List[str]:
+        """
+        Split a line into "words" while:
+
+        - Keeping quoted strings (single or double) as a single word.
+        - Keeping trailing punctuation such as ',', ')', ']' attached
+          to the preceding word.
+        - Ignoring differences in internal whitespace, since alignment
+          will reformat spacing anyway.
+        """
+        if not text:
+            return []
+
+        raw_tokens = cls._WORD_PATTERN.findall(text)
+
+        if not raw_tokens:
+            return []
+
+        # Attach punctuation to the previous token where appropriate
+        sticky_punct = {",", ")", "]", "}", ";", ":", ".", "?", "!"}
+
+        merged: List[str] = [raw_tokens[0]]
+        for tok in raw_tokens[1:]:
+            if tok in sticky_punct and merged:
+                merged[-1] = merged[-1] + tok
+            else:
+                merged.append(tok)
+        print(f"text={text} merged={merged}")
+        return merged
+
+    def _align_group(self, group: List["Line"]) -> Iterable["Line"]:
         if len(group) <= 1:
             # Nothing to align
             yield from group
@@ -232,7 +277,7 @@ class WordAlignedStack[TChild:Node](NodeStack[TChild]):
         # Pass 1: collect words and compute widths
         for ln in group:
             text = ln.value.rstrip()
-            words = text.split() if text else []
+            words = self._split_words(text)
             rows.append(words)
 
             for i, w in enumerate(words):
@@ -252,19 +297,17 @@ class WordAlignedStack[TChild:Node](NodeStack[TChild]):
                     w = words[i]
                     pad = widths[i] - len(w)
                     if pad > 0:
-                        words[i] = w + " " * pad
+                        words[i] = w + (" " * pad)
             new_value = " ".join(words) if words else ""
             yield Line(ln.level, new_value)
 
     def render(
         self,
         level: int = 0,
-    ) -> Iterable[Line]:
-        lines_it = super().render(
-            level
-        )
+    ) -> Iterable["Line"]:
+        lines_it = super().render(level)
 
-        group: List[Line] = []
+        group: List["Line"] = []
         current_level: int = 0  # dummy default, only meaningful when group is non empty
 
         for ln in lines_it:

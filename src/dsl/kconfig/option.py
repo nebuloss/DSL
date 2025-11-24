@@ -1,7 +1,7 @@
 # ===== Typed options: config / menuconfig =====
 
 from typing import Optional, Union
-from dsl.container import NodeBlock
+from dsl.container import NodeBlock, WordAlignedStack
 from dsl.content import TextNode
 from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
@@ -45,6 +45,14 @@ class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
         else:
             self.append(KStringKey(self._const_type.typename(), prompt))
 
+        self._default_list=WordAlignedStack[TextNode]()
+        self._dependency_list=WordAlignedStack[TextNode]()
+        self._select_list=WordAlignedStack[TextNode]()
+
+        self.append(self._default_list)
+        self.append(self._dependency_list)
+        self.append(self._select_list)
+
     @property
     def name(self) -> KVar:
         return self._name
@@ -65,20 +73,20 @@ class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
         """
 
         if when is None or KConst.isTrue(when):
-            self.append(TextNode(f"default {value}"))
+            self._default_list.append(TextNode(f"default {value}"))
         else:
-            self.append(TextNode(f"default {value} if {when}"))
+            self._default_list.append(TextNode(f"default {value} if {when}"))
         return self
 
     def add_depends(self, *conds: KExpr) -> "KOption[ConstT]":
         for cond in conds:
             if not KConst.isTrue(cond):
-                self.append(TextNode(f"depends on {cond}"))
+                self._dependency_list.append(TextNode(f"depends on {cond}"))
         return self
     
     def add_selects(self, *vars: KExpr) -> "KOption[ConstT]":
         for var in vars:
-            self.append(TextNode(f"select {var}"))
+            self._select_list.append(TextNode(f"select {var}"))
         return self
 
 
