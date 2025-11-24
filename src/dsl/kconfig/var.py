@@ -27,7 +27,7 @@ class KVar(VarName[KconfigOps]):
     def normalize(name: str) -> str:
         # Use VarName normalization, then uppercase for Kconfig style
         base = VarName.normalize(name)
-        return base.upper()
+        return base.upper().replace(".","_")
 
     def __str__(self) -> str:
         return self.name

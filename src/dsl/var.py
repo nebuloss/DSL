@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import re
 from typing import (
     Any,
     ClassVar,
@@ -307,18 +308,36 @@ class VarName(VarExpr, ABC):
     """
     Variable reference. Concrete languages may override normalize.
     """
+    # Allowed final characters: letters, digits, underscore, dot
+    _ILLEGAL_CHAR_RE = re.compile(r"[^A-Za-z0-9_.]")
 
     def __init__(self, name: str):
         self._name = self.normalize(name)
         super().__init__()
 
-    @staticmethod
-    def normalize(name: str) -> str:
+    @classmethod
+    def normalize(cls,name: str) -> str:
         if not isinstance(name, str):
             raise TypeError("Variable name must be a string")
+
         s = name.strip()
         if not s:
             raise ValueError("Empty variable name")
+
+        # Replace only "acceptable" characters
+        # You can add more here later if you want (for example tabs)
+        s = s.replace(" ", "_").replace("-", "_")
+
+        # First character must not be a digit
+        if s[0].isdigit():
+            raise ValueError("Variable name cannot start with a digit")
+
+        # Check for any remaining illegal characters
+        m = cls._ILLEGAL_CHAR_RE.search(s)
+        if m:
+            illegal = m.group(0)
+            raise ValueError(f"Illegal character {illegal!r} in variable name")
+
         return s
 
     @property
