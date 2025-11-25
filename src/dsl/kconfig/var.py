@@ -30,7 +30,7 @@ class KVar(VarName[KconfigOps]):
         # First character must not be a digit
         if base[0].isdigit():
             raise ValueError("Variable name cannot start with a digit")
-        return base.upper().replace(".","_")
+        return base.upper().replace(".","_").replace("-", "_")
 
     def __str__(self) -> str:
         return self.name

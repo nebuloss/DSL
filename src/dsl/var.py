@@ -309,7 +309,7 @@ class VarName(VarExpr, ABC):
     Variable reference. Concrete languages may override normalize.
     """
     # Allowed final characters: letters, digits, underscore, dot
-    _ILLEGAL_CHAR_RE = re.compile(r"[^A-Za-z0-9_.]")
+    _ILLEGAL_CHAR_RE = re.compile(r"[^A-Za-z0-9_.\-]")
 
     def __init__(self, name: str):
         self._name = self.normalize(name)
@@ -326,7 +326,7 @@ class VarName(VarExpr, ABC):
 
         # Replace only "acceptable" characters
         # You can add more here later if you want (for example tabs)
-        s = s.replace(" ", "_").replace("-", "_")
+        s = s.replace(" ", "_")
 
         # Check for any remaining illegal characters
         m = cls._ILLEGAL_CHAR_RE.search(s)
