@@ -195,6 +195,7 @@ class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,T
     def __iter__(self)->Iterator[Node]:
         yield from self.iter_with_margin(self.begin,NodeBlock.inner(self),self.end)
 
+
 class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
     """
     Align children on word boundaries.
@@ -206,6 +207,10 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
 
     Alignment is applied per consecutive group of lines that share the
     same indentation level.
+
+    If `limit` is set, only the first `limit` words of each line
+    participate in alignment. Everything after that (including all
+    spaces and comments) is left byte-for-byte unchanged.
     """
 
     # Match either:
@@ -214,11 +219,11 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
     #  - any other run of non-whitespace characters
     _WORD_PATTERN = re.compile(
         r"""
-        "[^"\\]*(?:\\.[^"\\]*)*"     # double-quoted string
-    | '[^'\\]*(?:\\.[^'\\]*)*'     # single-quoted string
-    | [^\s]+                       # other non-whitespace
+        "[^"\\]*(?:\\.[^"\\]*)*"   # double-quoted string
+      | '[^'\\]*(?:\\.[^'\\]*)*'   # single-quoted string
+      | [^\s]+                     # other non-whitespace
         """,
-        re.VERBOSE
+        re.VERBOSE,
     )
 
     def __init__(
@@ -234,36 +239,49 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
     def limit(self) -> Optional[int]:
         return self._limit
 
-    @classmethod
-    def _split_words(cls,text: str) -> List[str]:
+    def _split_words(self, text: str) -> tuple[List[str], str]:
         """
-        Split a line into "words" while:
+        Split `text` into (words, tail).
 
-        - Keeping quoted strings (single or double) as a single word.
-        - Keeping trailing punctuation such as ',', ')', ']' attached
-          to the preceding word.
-        - Ignoring differences in internal whitespace, since alignment
-          will reformat spacing anyway.
+        - words: tokens that will be aligned (up to `self._limit`)
+        - tail: untouched suffix of the original line, including any
+          spaces before the first non-aligned token and everything
+          after it.
+
+        Quoted strings (single or double) are treated as a single token.
         """
         if not text:
-            return []
+            return [], ""
 
-        raw_tokens = cls._WORD_PATTERN.findall(text)
+        matches = list(self._WORD_PATTERN.finditer(text))
+        if not matches:
+            return [], ""
 
-        if not raw_tokens:
-            return []
+        # Decide how many tokens go into the aligned head
+        if self._limit is None:
+            limit = len(matches)
+        else:
+            limit = max(0, min(self._limit, len(matches)))
 
-        # Attach punctuation to the previous token where appropriate
-        sticky_punct = {",", ")", "]", "}", ";", ":", ".", "?", "!"}
+        if limit == 0:
+            # Nothing is aligned, whole line is tail
+            return [], text
 
-        merged: List[str] = [raw_tokens[0]]
-        for tok in raw_tokens[1:]:
-            if tok in sticky_punct and merged:
-                merged[-1] = merged[-1] + tok
-            else:
-                merged.append(tok)
-#        print(f"text={text} merged={merged}")
-        return merged
+        head_matches = matches[:limit]
+        words = [m.group(0) for m in head_matches]
+
+        # If there are tokens beyond the limit, tail starts right after
+        # the last aligned token, so the spaces before the next token
+        # belong to the tail and are preserved.
+        if limit < len(matches):
+            tail_start = head_matches[-1].end()
+        else:
+            # No extra tokens; tail is whatever comes after the last one
+            tail_start = head_matches[-1].end()
+
+        tail = text[tail_start:] if tail_start < len(text) else ""
+
+        return words, tail
 
     def _align_group(self, group: List["Line"]) -> Iterable["Line"]:
         if len(group) <= 1:
@@ -272,17 +290,19 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
             return
 
         rows: List[List[str]] = []
+        tails: List[str] = []
         widths: List[int] = []
 
-        # Pass 1: collect words and compute widths
+        # Pass 1: collect words (up to limit) and compute widths
         for ln in group:
-            text = ln.value.rstrip()
-            words = self._split_words(text)
+            # Only strip newlines, not spaces
+            text = ln.value.rstrip("\n")
+            words, tail = self._split_words(text)
+
             rows.append(words)
+            tails.append(tail)
 
             for i, w in enumerate(words):
-                if self._limit is not None and i >= self._limit:
-                    break
                 lw = len(w)
                 if i == len(widths):
                     widths.append(lw)
@@ -290,7 +310,7 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
                     widths[i] = lw
 
         # Pass 2: pad and rebuild lines
-        for ln, words in zip(group, rows):
+        for ln, words, tail in zip(group, rows, tails):
             cols = min(len(words), len(widths))
             if cols > 1:
                 for i in range(cols - 1):
@@ -298,7 +318,15 @@ class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
                     pad = widths[i] - len(w)
                     if pad > 0:
                         words[i] = w + (" " * pad)
-            new_value = " ".join(words) if words else ""
+
+            head = " ".join(words) if words else ""
+
+            if tail:
+                # Tail is preserved exactly, including leading spaces
+                new_value = (head + tail) if head else tail
+            else:
+                new_value = head
+
             yield Line(ln.level, new_value)
 
     def render(

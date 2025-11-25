@@ -38,4 +38,4 @@ class MAppend(MAssignment):
 
 class MAssignmentList(WordAlignedStack[MAssignment]):
     def __init__(self,*assignments:MAssignment):
-        super().__init__(*assignments,limit=2)
+        super().__init__(*assignments,limit=3)
