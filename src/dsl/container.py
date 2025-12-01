@@ -36,7 +36,7 @@ class ContainerNode(Node):
             yield from child.render(level)
 
     def find(self, *tags)-> Iterator[Node]:
-        print(f"{repr(self)} contains {list(iter(self))}")
+#        print(f"{repr(self)} contains {list(iter(self))}")
         yield from super().find(*tags)
         for child in self:
             yield from child.find(*tags)

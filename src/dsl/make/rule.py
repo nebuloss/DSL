@@ -77,7 +77,9 @@ class MBuiltinRule(MRule):
 
         return type(name, (cls,), namespace)
 
-    
-MPhonyRule=MBuiltinRule[MConst(".PHONY")]
+class MPhonyRule(MBuiltinRule[MConst(".PHONY")]):
+    def __init__(self, rule:MExpr):
+        super().__init__(prereqs=rule)
+
 MDefaultRule=MBuiltinRule[MConst(".DEFAULT")]
 MAllRule=MBuiltinRule[MConst("all")]
