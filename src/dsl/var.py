@@ -305,20 +305,19 @@ class VarConst(VarExpr, ABC):
     def false(cls) -> Self:
         return cls(False)  # type: ignore[call-arg]
 
-
 class VarName(VarExpr, ABC):
     """
-    Variable reference. Concrete languages may override normalize.
+    Variable reference.
+
+    By default, variable names may contain ASCII letters, digits, underscore,
+    and dot. Extra allowed characters can be passed with `special_chars`.
     """
-    # Allowed final characters: letters, digits, underscore, dot
-    _ILLEGAL_CHAR_RE = re.compile(r"[^A-Za-z0-9_.\-]")
 
-    def __init__(self, name: str):
-        self._name = self.normalize(name)
-        super().__init__()
+    # Base allowed characters: letters, digits, underscore, dot
+    _BASE_ALLOWED = "A-Za-z0-9_."
+    _ILLEGAL_CHAR_RE = re.compile(rf"[^{_BASE_ALLOWED}]")
 
-    @classmethod
-    def normalize(cls,name: str) -> str:
+    def __init__(self, name: str, special_chars: str = ""):
         if not isinstance(name, str):
             raise TypeError("Variable name must be a string")
 
@@ -330,13 +329,24 @@ class VarName(VarExpr, ABC):
         # You can add more here later if you want (for example tabs)
         s = s.replace(" ", "_")
 
+        # Build a regex that treats special_chars as extra allowed characters
+        if special_chars:
+            extra = re.escape(special_chars)  # escape regex metacharacters
+            klass = type(self)
+            illegal_re = re.compile(rf"[^{klass._BASE_ALLOWED}{extra}]")
+        else:
+            illegal_re = type(self)._ILLEGAL_CHAR_RE
+
         # Check for any remaining illegal characters
-        m = cls._ILLEGAL_CHAR_RE.search(s)
+        m = illegal_re.search(s)
         if m:
             illegal = m.group(0)
             raise ValueError(f"Illegal character {illegal!r} in variable name")
 
-        return s
+        self._special_chars = special_chars
+        self._name = s
+
+        super().__init__()
 
     @property
     def name(self) -> str:
@@ -352,11 +362,12 @@ class VarName(VarExpr, ABC):
         return 1
 
     def add_prefix(self, prefix: str) -> Self:
-        return type(self)(f"{prefix}_{self.name}")
+        # Preserve the same special_chars for derived names
+        return type(self)(f"{prefix}_{self.name}", special_chars=self._special_chars)
 
     def add_suffix(self, suffix: str) -> Self:
-        return type(self)(f"{self.name}_{suffix}")
-
+        # Preserve the same special_chars for derived names
+        return type(self)(f"{self.name}_{suffix}", special_chars=self._special_chars)
 
 class VarNull(VarExpr, ABC):
     """

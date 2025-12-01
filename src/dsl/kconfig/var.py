@@ -23,14 +23,10 @@ class KconfigOps(LanguageOps):
 KExpr = VarExpr
 
 class KVar(VarName[KconfigOps]):
-    @staticmethod
-    def normalize(name: str) -> str:
-        # Use VarName normalization, then uppercase for Kconfig style
-        base = VarName.normalize(name)
-        # First character must not be a digit
-        if base[0].isdigit():
+    def __init__(self, name:str):
+        if name[0].isdigit():
             raise ValueError("Variable name cannot start with a digit")
-        return base.upper().replace(".","_").replace("-", "_")
+        super().__init__(name.upper().replace(".","_").replace("-", "_"))
 
     def __str__(self) -> str:
         return self.name

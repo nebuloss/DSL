@@ -40,15 +40,28 @@ class MConst(VarConst[MakeOps]):
         # Any other constant prints as-is (non-empty strings are truthy in $(if ...))
         return str(self.val)
     
-class MVar(VarName[MakeOps]):
+class MVarBase(VarName[MakeOps]):
+    pass
+
+class MVar(MVarBase):
+    def __init__(self, name):
+        super().__init__(name, special_chars="-.")
+
     def __str__(self) -> str:
         return f"$({self.name})"
         
 class MArg(MVar):
     def __init__(self, n:int):
+        if not isinstance(n,int):
+            raise TypeError(f"Expected int got {type(n).__name__}")
         super().__init__(str(n))
 
-class MSpecialVar(MVar):
+class MSpecialVar(MVarBase):
+    def __init__(self, name):
+        if len(name)!=1:
+            raise ValueError("special variable in makefile have a one character length")
+        super().__init__(name, special_chars="@<^")
+
     def __str__(self):
         return "$"+self.name
     
