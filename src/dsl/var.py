@@ -343,9 +343,7 @@ class VarName(VarExpr, ABC):
             illegal = m.group(0)
             raise ValueError(f"Illegal character {illegal!r} in variable name")
 
-        self._special_chars = special_chars
         self._name = s
-
         super().__init__()
 
     @property
@@ -363,11 +361,11 @@ class VarName(VarExpr, ABC):
 
     def add_prefix(self, prefix: str) -> Self:
         # Preserve the same special_chars for derived names
-        return type(self)(f"{prefix}_{self.name}", special_chars=self._special_chars)
+        return type(self)(f"{prefix}_{self.name}")
 
     def add_suffix(self, suffix: str) -> Self:
         # Preserve the same special_chars for derived names
-        return type(self)(f"{self.name}_{suffix}", special_chars=self._special_chars)
+        return type(self)(f"{self.name}_{suffix}")
 
 class VarNull(VarExpr, ABC):
     """
