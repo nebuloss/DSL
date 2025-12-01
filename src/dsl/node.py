@@ -49,6 +49,3 @@ class Node(ABC):
         """
         if tags and all(t in self._tags for t in tags):
             yield self
-
-        for child in self:
-            yield from child.find(*tags)

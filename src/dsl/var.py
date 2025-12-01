@@ -262,7 +262,9 @@ class VarBinaryOp(VarExpr, ABC):
         for t in terms_sorted[1:]:
             acc = op_cls(acc, t)  # type: ignore[arg-type]
         return acc
-
+    
+    def __len__(self) -> int:
+        return len(self.left) + len(self.right)
 
 # =====================================================================
 # Leaves
@@ -465,9 +467,6 @@ class VarAnd(VarBinaryOp, ABC):
             self.ops.And,
         )
 
-    def __len__(self) -> int:
-        return len(self.left) + len(self.right)
-
     # helpers use self.ops directly
     def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
         items: List[VarExpr] = []
@@ -579,9 +578,6 @@ class VarOr(VarBinaryOp, ABC):
             self.ops.Or,
         )
 
-    def __len__(self) -> int:
-        return len(self.left) + len(self.right)
-
     # helpers use self.ops directly
     def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
         items: List[VarExpr] = []
@@ -665,18 +661,12 @@ class VarAdd(VarBinaryOp, ABC):
     def key(self) -> Tuple[Any, ...]:
         return ("add", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr":
-        return self  # type: ignore[call-arg]
-
 
 class VarSub(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 4
 
     def key(self) -> Tuple[Any, ...]:
         return ("sub", self.left.key(), self.right.key())
-
-    def simplify(self) -> "VarExpr":
-        return self  # type: ignore[call-arg]
 
 
 class VarMul(VarBinaryOp, ABC):
@@ -685,15 +675,9 @@ class VarMul(VarBinaryOp, ABC):
     def key(self) -> Tuple[Any, ...]:
         return ("mul", self.left.key(), self.right.key())
 
-    def simplify(self) -> "VarExpr":
-        return self  # type: ignore[call-arg]
-
 
 class VarDiv(VarBinaryOp, ABC):
     PREC: ClassVar[int] = 5
 
     def key(self) -> Tuple[Any, ...]:
         return ("div", self.left.key(), self.right.key())
-
-    def simplify(self) -> "VarExpr":
-        return self

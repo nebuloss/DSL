@@ -76,7 +76,7 @@ class MAdd(VarAdd[MakeOps]):
         if isinstance(left, MConst) and isinstance(right, MConst):
             return MConst(self._join(left, right))
 
-        return MAdd(left, right)
+        return self
 
     def __str__(self) -> str:
         return self._join(self.left, self.right)

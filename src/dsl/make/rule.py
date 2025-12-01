@@ -1,13 +1,13 @@
 # ===== Rules =====
 
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional
 from dsl.container import NodeBlock
 from dsl.content import TextNode
-from dsl.make.core import MCommand
-from dsl.make.var import MExpr
+from dsl.make.core import MElement
+from dsl.make.var import MConst, MExpr
 
 
-class MRule(NodeBlock[MCommand,TextNode]):
+class MRule(NodeBlock[MElement,TextNode]):
     """
     Builds exactly:
 
@@ -21,10 +21,11 @@ class MRule(NodeBlock[MCommand,TextNode]):
 
     def __init__(
         self,
-        targets: Union[str, MExpr],
-        prereqs: Optional[Union[str, MExpr]] = None,
-        order_only: Optional[Union[str, MExpr]] = None,
-        op: Op = ":",
+        targets: MExpr,
+        *children: MElement,
+        prereqs: Optional[MExpr] = None,
+        order_only: Optional[MExpr] = None,
+        op: Op = ":"
     ):
         if op not in (":", "::", "&:"):
             raise ValueError(f"Invalid rule operator: {op}")
@@ -42,7 +43,9 @@ class MRule(NodeBlock[MCommand,TextNode]):
         if oo:
             header += f" | {oo}"
 
-        super().__init__(TextNode(header))
+#        print(f"children={list(children)}")
+#        print(f"targets={targets}")
+        super().__init__(TextNode(header),*children)
         
 
 class MBuiltinRule(MRule):
@@ -51,18 +54,19 @@ class MBuiltinRule(MRule):
     ...
     """
 
-    _builtin_target: Optional[Union[str, MExpr]]=None
+    _builtin_target: Optional[MExpr]=None
 
     def __init__(
         self,
-        prereqs: Optional[Union[str, MExpr]] = None,
+        *children: MElement,
+        prereqs: Optional[MExpr] = None
     ):
         # use the target stored on the class
-        if self._builtin_target is None and not (isinstance(self._builtin_target,str) or isinstance(self._builtin_target,MExpr)) :
-            raise TypeError("Invalid type")
-        super().__init__(self._builtin_target, prereqs, None, ":")
+        if self._builtin_target is None:
+            raise TypeError("Builtin target is not set")
+        super().__init__(self._builtin_target, *children, prereqs=prereqs)
 
-    def __class_getitem__(cls, target: Union[str, MExpr]):
+    def __class_getitem__(cls, target: MExpr):
         """
         MBuiltinRule[".PHONY"] returns a subclass with _builtin_target fixed.
         """
@@ -74,6 +78,6 @@ class MBuiltinRule(MRule):
         return type(name, (cls,), namespace)
 
     
-MPhonyRule=MBuiltinRule[".PHONY"]
-MDefaultRule=MBuiltinRule[".DEFAULT"]
-MAllRule=MBuiltinRule["all"]
+MPhonyRule=MBuiltinRule[MConst(".PHONY")]
+MDefaultRule=MBuiltinRule[MConst(".DEFAULT")]
+MAllRule=MBuiltinRule[MConst("all")]

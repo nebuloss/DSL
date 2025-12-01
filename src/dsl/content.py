@@ -7,15 +7,7 @@ from dsl.node import Line, Node
 
 
 class ContentNode(Node, ABC):
-    """
-    Base class for leaf nodes with no children.
-    Implements an empty iterator.
-    """
-
-    def __iter__(self) -> Iterable[Node]:
-        # Leaf node: no children
-        return iter(())
-
+    pass
 
 class NullNode(ContentNode):
     """
