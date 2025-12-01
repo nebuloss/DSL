@@ -19,7 +19,10 @@ from .var import (
     MAnd,
     MOr,
     MNot,
-    MNULL
+    mNULL,
+    mTargetVar,
+    mFirstPrerequisiteVar,
+    mPrerequisitesVar
 )
 
 from .rule import (
@@ -104,7 +107,10 @@ __all__ = [
     "MOr",
     "MNot",
     # const
-    "MNULL",
+    "mNULL",
+    "mTargetVar",
+    "mFirstPrerequisiteVar",
+    "mPrerequisitesVar"
 
     # assignment
     "MAssignment",

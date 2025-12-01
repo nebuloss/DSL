@@ -28,7 +28,7 @@ class MNull(VarNull[MakeOps]):
     def __str__(self):
         return ""
     
-MNULL=MNull()
+mNULL=MNull()
 
 class MConst(VarConst[MakeOps]):
     def __str__(self) -> str:
@@ -39,14 +39,22 @@ class MConst(VarConst[MakeOps]):
             return ""
         # Any other constant prints as-is (non-empty strings are truthy in $(if ...))
         return str(self.val)
-
+    
 class MVar(VarName[MakeOps]):
     def __str__(self) -> str:
         return f"$({self.name})"
-    
+        
 class MArg(MVar):
     def __init__(self, n:int):
         super().__init__(str(n))
+
+class MSpecialVar(MVar):
+    def __str__(self):
+        return "$"+self.name
+    
+mTargetVar=MSpecialVar("@")
+mFirstPrerequisiteVar=MSpecialVar("<")
+mPrerequisitesVar=MSpecialVar("^")
 
 class MAdd(VarAdd[MakeOps]):
     """
