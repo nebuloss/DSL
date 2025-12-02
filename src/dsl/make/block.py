@@ -1,30 +1,31 @@
-from typing import Generic, Iterator, TypeVar
-from dsl.container import DelimitedNodeBlock, NodeStack, SimpleNodeStack
+from typing import Generic, Iterator, TypeVar, cast
+from dsl.container import DelimitedNodeBlock, NodeBlock, NodeStack, SimpleNodeStack
 from dsl.make.core import MElement, Makefile
 from dsl.make.keyword import MELSE_KEYWORD, MENDEF_KEYWORD, MENDIF_KEYWORD, MConditionKeyword, MDefineKeyword, MIfDefKeyword, MIfEqKeyword, MIfKeyword, MIfNDefKeyword, MIfNEqKeyword, MKeyword
+from dsl.make.rule import MRule
 from dsl.make.var import MExpr, MVar
 from dsl.node import Node
 
-TBlockHeader = TypeVar("TBlockHeader", bound=MKeyword)
-
-class MBlock(DelimitedNodeBlock[MElement,TBlockHeader,MKeyword],Generic[TBlockHeader]):
-    def __init__(self, begin:TBlockHeader, end:MKeyword, *children:MElement):
+class MDelimitedBlock[TBlockHeader:MKeyword](DelimitedNodeBlock[MElement,TBlockHeader,MKeyword]):
+    def __init__(self, begin:TBlockHeader, end:MKeyword, *children:MElement,indent:bool=True):
         super().__init__(
             begin, 
             end, 
             *children, 
-            margin=Makefile.MARGIN
+            margin=Makefile.MARGIN,
+            level=int(indent)
         )
 
-class MDefine(MBlock[MDefineKeyword]):
+class MDefine(MDelimitedBlock[MDefineKeyword]):
     def __init__(self, name:MVar , *children):
         super().__init__(
             MDefineKeyword(name),
             MENDEF_KEYWORD,
-            *children
+            *children,
+            indent=False
         )
 
-class MCondition(MBlock[MConditionKeyword]):
+class MCondition(MDelimitedBlock[MConditionKeyword]):
     def __init__(self, begin: MConditionKeyword, *children:MElement):
         super().__init__(begin, MENDIF_KEYWORD, *children)
 
@@ -75,18 +76,18 @@ class MConditionList(NodeStack[MCondition]):
         super().__init__(*children, margin=Makefile.MARGIN)
 
     def iter_without_margin(self)->Iterator[Node]:
-        it=SimpleNodeStack.__iter__(self)
+        it=cast(Iterator[MCondition],SimpleNodeStack.__iter__(self))
         first=next(it,None)
 
         if first is None:
             return
         
         yield first.begin
-        yield first.inner()
+        yield from first.inner()
 
         for cond in it:
             yield cond.begin.with_else_prefix()
-            yield cond.inner()
+            yield from cond.inner()
 
         yield first.end
 

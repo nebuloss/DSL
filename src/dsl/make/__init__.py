@@ -12,17 +12,26 @@ from .var import (
     MakeOps,
     MExpr,
     MNull,
+    mNULL,
     MConst,
     MVar,
     MArg,
     MAdd,
     MAnd,
     MOr,
-    MNot
+    MNot,
+    mTargetVar,
+    mFirstPrerequisiteVar,
+    mPrerequisitesVar
 )
 
 from .rule import (
-    MRule
+    MRule,
+    MStaticRule,
+    MIndependantRule,
+    MGroupedRule,
+    MReceipe,
+    MPhony
 )
 
 from .assignment import (
@@ -101,7 +110,9 @@ __all__ = [
     "MNot",
     # const
     "mNULL",
-    "mTargetVar"
+    "mTargetVar",
+    "mFirstPrerequisiteVar",
+    "mPrerequisitesVar",
 
     # assignment
     "MAssignment",
@@ -145,6 +156,11 @@ __all__ = [
 
     #rule
     "MRule",
+    "MStaticRule",
+    "MIndependantRule",
+    "MGroupedRule",
+    "MReceipe",
+    "MPhony",
 
     #functions
     "all",

@@ -28,7 +28,7 @@ class ContainerNode(Node):
         return next(iter(self), None) is None
     
     def render(self, level: int = 0) -> Iterator[Line]:
-#        print(f"{repr(self)} contains {list(iter(self))}")
+        print(f"{repr(self)} contains {list(iter(self))}")
         for child in self:
             yield from child.render(level)
 

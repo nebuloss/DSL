@@ -1,169 +1,180 @@
-#!/usr/bin/env python3
-from __future__ import annotations
-
+from enum import IntFlag
 import re
-from typing import Dict, List, Optional, Union
+from typing import Iterator, List, Union
 
-from dsl import Node,NodeStack,SimpleNodeStack,BlankLineNode,TextNode
+from dsl import TextNode, WordsNode, Node, Line
 from .var import MExpr
 
 MElement = Node
 
-class Makefile(NodeStack[MElement]):
-    MARGIN:Optional[Node]=BlankLineNode()
 
-    def __init__(self,*elements:MElement):
-        super().__init__(*elements,margin=Makefile.MARGIN)
-
-class MList(SimpleNodeStack[MElement]):
-    pass
-
-class MComment(TextNode):
-    def __init__(self, text: str):
-        super().__init__(f"# {text}" if text else "#")
-
-
-# ===== Commands =====
-
-class MCommand(TextNode):
+class MFlag(IntFlag):
     """
-    Make recipe command line.
+    Bitmask of make command flags:
 
-    Prefix semantics:
+      IGNORE_ERRORS -> '-'
+      SILENT        -> '@'
+      ALWAYS        -> '+'
 
-      '-'  : ignore errors for this command
-      '@'  : do not echo this command (unless overridden by -n etc.)
-      '+'  : always execute, even with -n/-q/-t
+    - You can combine them with | or +:
+        MFlag.SILENT | MFlag.IGNORE_ERRORS
+        MFlag.SILENT + MFlag.ALWAYS
 
-    Any prefix characters already present in `line` are stripped and
-    replaced by the canonical prefix built from the flags.
-
-    The `.command` property returns the execution line with all prefixes
-    removed.
+    - str(flag) renders the prefix string, for example:
+        str(MFlag.SILENT)                      -> '@'
+        str(MFlag.IGNORE_ERRORS | MFlag.SILENT)-> '-@'
+        str(MFlag.NONE)                        -> ''
     """
 
-    # Mapping from flag name to prefix char
-    _FLAG_CHAR: Dict[str, str] = {
-        "ignore_errors": "-",
-        "silent": "@",
-        "always": "+",
-    }
+    NONE = 0
+    IGNORE_ERRORS = 1  # '-'
+    SILENT = 2         # '@'
+    ALWAYS = 4         # '+'
 
-    # ---- helpers ----
+    def __str__(self) -> str:
+        s = ""
+        if self & MFlag.IGNORE_ERRORS:
+            s += "-"
+        if self & MFlag.SILENT:
+            s += "@"
+        if self & MFlag.ALWAYS:
+            s += "+"
+        return s
 
-    @classmethod
-    def _strip_prefix(cls, text: str) -> str:
-        """
-        Return the core part of the command with any leading prefix
-        characters removed and leading whitespace stripped.
-        """
-        text = text.lstrip()
-        prefix_chars = "".join(cls._FLAG_CHAR.values())
-        i = 0
-        while i < len(text) and text[i] in prefix_chars:
-            i += 1
-        core = text[i:].lstrip()
-        return core
 
-    def _set_prefix(
-        self,
-        *,
-        silent: bool = False,
-        ignore_errors: bool = False,
-        always: bool = False,
-    ) -> None:
-        """
-        Initialise internal flags from explicit args only.
-        Existing prefixes in the original line are ignored.
-        """
-        self._flags: Dict[str, bool] = {
-            "silent": bool(silent),
-            "ignore_errors": bool(ignore_errors),
-            "always": bool(always),
-        }
+class MLine(MElement):
+    """
+    Base Makefile line that carries an MFlag.
 
-    def _get_prefix(self) -> str:
-        """
-        Build canonical prefix string from internal flags.
-        """
-        parts: List[str] = []
-        for name,value in self._FLAG_CHAR.items():
-            if self._flags.get(name):
-                parts.append(value)
-        return "".join(parts)
+    Concrete subclasses also inherit from a content node type
+    such as TextNode or WordsNode to define how they *produce* lines.
 
-    # ---- main API ----
+    MLine then decorates rendering by injecting the prefix in front of
+    the first rendered line.
+    """
 
-    def __init__(
-        self,
-        line: str,
-        *,
-        silent: bool = False,
-        ignore_errors: bool = False,
-        always: bool = False,
-    ):
-        if not isinstance(line, str):
-            raise TypeError("Command line must be a str")
-
-        core = self._strip_prefix(line)
-        self._set_prefix(
-            silent=silent,
-            ignore_errors=ignore_errors,
-            always=always,
-        )
-        full_text = self._get_prefix() + core
-
-        super().__init__(full_text)
-
-    # ---- flags introspection ----
+    def __init__(self, flags: MFlag = MFlag.NONE) -> None:
+        # Node.__init__ will be called by TextNode / WordsNode in subclasses.
+        self._flags: MFlag = flags
+        self._prefix: str = str(flags)
 
     @property
-    def flags(self) -> Dict[str, bool]:
-        # Treat as read-only from outside
+    def flags(self) -> MFlag:
         return self._flags
 
     @property
+    def prefix(self) -> str:
+        """
+        Prefix string built from flags, for example '@', '-@', '+', or ''.
+        """
+        return self._prefix
+
+    @property
     def silent(self) -> bool:
-        return self._flags["silent"]
+        return bool(self._flags & MFlag.SILENT)
 
     @property
     def ignore_errors(self) -> bool:
-        return self._flags["ignore_errors"]
+        return bool(self._flags & MFlag.IGNORE_ERRORS)
 
     @property
     def always(self) -> bool:
-        return self._flags["always"]
+        return bool(self._flags & MFlag.ALWAYS)
 
-    # ---- execution line (prefix stripped) ----
+    def render(self, level: int = 0) -> Iterator[Line]:
+        """
+        Decorate the underlying node's rendering by prepending the prefix
+        to the first emitted line.
+
+        Subclasses must provide the base rendering via super().render(level)
+        through their content base (TextNode / WordsNode).
+        """
+        it = super().render(level)
+        first = next(it, None)
+        if first is None:
+            return
+
+        if self._prefix:
+            yield Line(first.level, self._prefix + first.value)
+        else:
+            yield first
+
+        yield from it
+
+
+
+class MText(MLine, TextNode):
+    """
+    Simple text line that can wrap either a raw string or an MExpr.
+
+    IMPORTANT:
+      MText no longer touches the prefix directly.
+      It renders its text via TextNode, and MLine.render automatically
+      injects the prefix on the first line.
+    """
+
+    def __init__(self, text: Union[str, MExpr], flags: MFlag = MFlag.NONE) -> None:
+        MLine.__init__(self, flags=flags)
+
+        if isinstance(text, MExpr):
+            value = str(text)
+        elif isinstance(text, str):
+            value = text
+        else:
+            raise TypeError(f"MText expects str or MExpr, got {type(text).__name__}")
+
+        TextNode.__init__(self, value)
+
+
+class MCommand(MLine, WordsNode):
+    """
+    Shell-style make recipe command with structured `name` and `args`.
+
+        MCommand("echo", "hello world", "$(VAR)")
+        MCommand(MExpr("$(CC)"), MExpr("$(CFLAGS)"), "-o", "app", "main.o")
+
+    - `name` and `args` are stored raw (str or MExpr)
+    - Escaping is only applied when rendering `words()`
+    - `flags` is an MFlag; the resulting prefix is injected in render()
+      via MLine, before the first line.
+
+    Rendering:
+
+      words()   -> pure shell tokens (no prefix)
+      lines()   -> single line with prefix at the beginning
+      token     -> list(self.words())   (no prefix)
+      command   -> next(self.lines())   (with prefix)
+    """
+
+    _SAFE_RE = re.compile(r"[A-Za-z0-9_\-./:]+$")
+
+    def __init__(
+        self,
+        name: Union[str, MExpr],
+        *args: Union[str, MExpr],
+        sep: str = " ",
+        flags: MFlag = MFlag.NONE,
+    ) -> None:
+        if isinstance(name, str) and not name:
+            raise ValueError("MCommand requires a non empty command name")
+
+        MLine.__init__(self, flags=flags)
+        WordsNode.__init__(self, sep=sep)
+
+        self._name: Union[str, MExpr] = name
+        self._args: List[Union[str, MExpr]] = list(args)
+
+    # ---- raw API ----
 
     @property
-    def command(self) -> str:
-        """
-        Execution line as per spec:
-        the command line with any prefix chars removed.
-        """
-        return self._strip_prefix(self.text)
+    def name(self) -> Union[str, MExpr]:
+        return self._name
 
+    @property
+    def args(self) -> List[Union[str, MExpr]]:
+        return list(self._args)
 
-class MShellCommand(MCommand):
-    """
-    Convenience wrapper to build a command line from arguments.
-
-        MShellCommand("echo", "hello", "$(VAR)")
-        MShellCommand(M.var("CC"), M.var("CFLAGS"), "-o", "app", "main.o")
-
-    str args are shell-escaped only when needed.
-    MExpr args are inserted as-is.
-
-    Prefix flags:
-      - silent=True        -> '@' prefix
-      - ignore_errors=True -> '-' prefix
-      - always=True        -> '+' prefix
-    """
-
-    # Safe tokens: letters, digits, '_', '-', '.', '/', ':'
-    # Everything else (space, $, *, ?, quotes, etc.) triggers quoting.
-    _SAFE_RE = re.compile(r"[A-Za-z0-9_\-./:]+$")
+    # ---- escaping helpers ----
 
     @classmethod
     def _needs_quoting(cls, token: str) -> bool:
@@ -174,8 +185,9 @@ class MShellCommand(MCommand):
     @staticmethod
     def _escape_token(token: str) -> str:
         """
-        Shell-escape a string using single quotes, handling embedded
+        Shell escape a string using single quotes, handling embedded
         single quotes in the standard POSIX way:
+
             foo'bar -> 'foo'"'"'bar'
         """
         if token == "":
@@ -183,47 +195,40 @@ class MShellCommand(MCommand):
         parts = token.split("'")
         return "'" + "'\"'\"'".join(parts) + "'"
 
-    @classmethod
-    def _format_arg(cls, arg: Union[str, MExpr]) -> str:
+    def _format_arg(self, arg: Union[str, MExpr]) -> str:
         if isinstance(arg, MExpr):
             # Insert make expression as-is, e.g. $(CC) or $(CFLAGS)
             return str(arg)
         if isinstance(arg, str):
-            return cls._escape_token(arg) if cls._needs_quoting(arg) else arg
-        raise TypeError("shell args must be str or MExpr")
+            return self._escape_token(arg) if self._needs_quoting(arg) else arg
+        raise TypeError("command args must be str or MExpr")
 
-    def __init__(
-        self,
-        *args: Union[str, MExpr],
-        silent: bool = False,
-        ignore_errors: bool = False,
-        always: bool = False,
-    ):
-        if not args:
-            raise ValueError("MShellCommand requires at least one argument")
+    # ---- WordsNode API ----
 
-        parts: List[str] = [self._format_arg(a) for a in args]
-        line = " ".join(parts)
+    def words(self) -> Iterator[str]:
+        """
+        Pure shell tokens, without make prefix.
+        Prefix is injected at render time by MLine.render.
+        """
+        yield self._format_arg(self._name)
+        for a in self._args:
+            yield self._format_arg(a)
 
-        super().__init__(
-            line,
-            silent=silent,
-            ignore_errors=ignore_errors,
-            always=always,
-        )
+    # ---- convenience properties ----
 
-class MLine(TextNode):
-    """
-    Wrap a Make expression so it can live as a top level Makefile element.
+    @property
+    def token(self) -> List[str]:
+        """
+        Fully formatted tokens WITHOUT prefixes.
+        This is the "pure shell" view.
+        """
+        return list(self.words())
 
-    Example:
-        mf.append(MExprLine(M.eval(M.Const("include other.mk"))))
-
-    Renders as:
-        $(eval include other.mk)
-    """
-
-    def __init__(self, expr: MExpr):
-        if not isinstance(expr, MExpr):
-            raise TypeError(f"MExprLine expects an MExpr, got {type(expr).__name__}")
-        super().__init__(str(expr))
+    @property
+    def command(self) -> str:
+        """
+        Single formatted command line (first line from lines()),
+        including the make prefix.
+        """
+        it = self.lines()
+        return next(it, "")
