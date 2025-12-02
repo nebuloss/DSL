@@ -1,10 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from copy import copy
-import re
-from typing import Iterable, Iterator, List, Optional, Self
-
-from dsl.content import NULL_NODE
-from dsl.node import Line, Node
+from typing import Iterable, Iterator, List, Self
+from dsl.node import Line, Node, NULL_NODE
 
 class ContainerNode(Node):
     """
@@ -40,6 +37,26 @@ class ContainerNode(Node):
         yield from super().find(*tags)
         for child in self:
             yield from child.find(*tags)
+
+class IndentedNode[TChild:Node](ContainerNode):
+    def __init__(self,child:TChild, level=1):
+        self._level=level
+        self._child=child
+        super().__init__()
+
+    @property
+    def level(self)->int:
+        return self._level
+
+    @property
+    def child(self)->TChild:
+        return self._child
+
+    def __iter__(self)-> Iterator["TChild"]:
+        yield self.child
+
+    def render(self, level:int = 0):
+        yield from self.child.render(level+self.level)
 
 class SimpleNodeStack[TChild: Node](ContainerNode):
     """
@@ -136,13 +153,8 @@ class NodeStack[TChild: Node](SimpleNodeStack[TChild]):
         super().__init__(*children)
         self._margin:Node=margin
 
-    @property
-    def inner(self) -> Node:
-        return self._inner
-
-    @property
-    def outer(self) -> Node:
-        return self._outer
+    def inner(self) -> Iterator[Node]:
+        yield from SimpleNodeStack.__iter__(self)
     
     def iter_with_margin(self,*nodes:Node)->Iterator[Node]:
         it=iter(nodes)
@@ -156,15 +168,7 @@ class NodeStack[TChild: Node](SimpleNodeStack[TChild]):
             yield child
     
     def __iter__(self)->Iterator[Node]:
-        yield from self.iter_with_margin(*SimpleNodeStack.__iter__(self))
-
-class IndentedNodeStack[TChild: Node](SimpleNodeStack[TChild]):
-    def __init__(self, *children,level:int=1):
-        super().__init__(*children)
-        self._level=1
-
-    def render(self, level = 0):
-        yield from super().render(level+self._level)
+        yield from self.iter_with_margin(*self.inner())
 
 class NodeBlock[TChild:Node,TBegin: Node](NodeStack[TChild]):
 
@@ -172,10 +176,12 @@ class NodeBlock[TChild:Node,TBegin: Node](NodeStack[TChild]):
         self,
         begin: TBegin,
         *children: TChild,
-        margin:Node=NULL_NODE
+        margin:Node=NULL_NODE,
+        level:int=1
     ):
         # Type-check begin / end according to TBegin / TEnd
         self._begin: TBegin = begin
+        self._level=level
         
         super().__init__(*children, margin=margin)
 
@@ -183,16 +189,24 @@ class NodeBlock[TChild:Node,TBegin: Node](NodeStack[TChild]):
     def begin(self) -> TBegin:
         return self._begin
 
-    def inner(self) -> IndentedNodeStack[Node]:
-        return IndentedNodeStack(*NodeStack.__iter__(self))
+    def inner(self) -> Iterator[Node]:
+        for node in super().inner():
+            yield IndentedNode(node,self._level)
 
     def __iter__(self) -> Iterable[Node]:
-        yield from self.iter_with_margin(self.begin,self.inner()) 
+        yield from self.iter_with_margin(self.begin,*self.inner())
 
 
 class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,TBegin]):
-    def __init__(self, begin: TBegin, end: TEnd, *children: TChild, margin = NULL_NODE):
-        super().__init__(begin, *children, margin=margin)
+    def __init__(
+            self, 
+            begin: TBegin,
+            end: TEnd, 
+            *children: TChild, 
+            margin = NULL_NODE,
+            level:int=1):
+        
+        super().__init__(begin, *children, margin=margin,level=level)
         self._end: TEnd = end       # type: ignore[assignment]
 
     @property
@@ -200,164 +214,4 @@ class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,T
         return self._end
     
     def __iter__(self)->Iterator[Node]:
-        yield from self.iter_with_margin(self.begin,NodeBlock.inner(self),self.end)
-
-
-class WordAlignedStack[TChild: "Node"](NodeStack[TChild]):
-    """
-    Align children on word boundaries.
-
-    For each rendered line:
-    - Use Line.value (string) and split into "words" using _split_words.
-    - Columns are sized by the widest word in each column.
-    - Only existing words are padded, then rejoined.
-
-    Alignment is applied per consecutive group of lines that share the
-    same indentation level.
-
-    If `limit` is set, only the first `limit` words of each line
-    participate in alignment. Everything after that (including all
-    spaces and comments) is left byte-for-byte unchanged.
-    """
-
-    # Match either:
-    #  - double quoted string with possible escapes
-    #  - single quoted string with possible escapes
-    #  - any other run of non-whitespace characters
-    _WORD_PATTERN = re.compile(
-        r"""
-        "[^"\\]*(?:\\.[^"\\]*)*"   # double-quoted string
-      | '[^'\\]*(?:\\.[^'\\]*)*'   # single-quoted string
-      | [^\s]+                     # other non-whitespace
-        """,
-        re.VERBOSE,
-    )
-
-    def __init__(
-        self,
-        *children: TChild,
-        margin: "Node" = NULL_NODE,
-        limit: Optional[int] = None,
-    ):
-        super().__init__(*children, margin=margin)
-        self._limit: Optional[int] = limit
-
-    @property
-    def limit(self) -> Optional[int]:
-        return self._limit
-
-    def _split_words(self, text: str) -> tuple[List[str], str]:
-        """
-        Split `text` into (words, tail).
-
-        - words: tokens that will be aligned (up to `self._limit`)
-        - tail: untouched suffix of the original line, including any
-          spaces before the first non-aligned token and everything
-          after it.
-
-        Quoted strings (single or double) are treated as a single token.
-        """
-        if not text:
-            return [], ""
-
-        matches = list(self._WORD_PATTERN.finditer(text))
-        if not matches:
-            return [], ""
-
-        # Decide how many tokens go into the aligned head
-        if self._limit is None:
-            limit = len(matches)
-        else:
-            limit = max(0, min(self._limit, len(matches)))
-
-        if limit == 0:
-            # Nothing is aligned, whole line is tail
-            return [], text
-
-        head_matches = matches[:limit]
-        words = [m.group(0) for m in head_matches]
-
-        # If there are tokens beyond the limit, tail starts right after
-        # the last aligned token, so the spaces before the next token
-        # belong to the tail and are preserved.
-        if limit < len(matches):
-            tail_start = head_matches[-1].end()
-        else:
-            # No extra tokens; tail is whatever comes after the last one
-            tail_start = head_matches[-1].end()
-
-        tail = text[tail_start:] if tail_start < len(text) else ""
-
-        return words, tail
-
-    def _align_group(self, group: List["Line"]) -> Iterable["Line"]:
-        if len(group) <= 1:
-            # Nothing to align
-            yield from group
-            return
-
-        rows: List[List[str]] = []
-        tails: List[str] = []
-        widths: List[int] = []
-
-        # Pass 1: collect words (up to limit) and compute widths
-        for ln in group:
-            # Only strip newlines, not spaces
-            text = ln.value.rstrip("\n")
-            words, tail = self._split_words(text)
-
-            rows.append(words)
-            tails.append(tail)
-
-            for i, w in enumerate(words):
-                lw = len(w)
-                if i == len(widths):
-                    widths.append(lw)
-                elif lw > widths[i]:
-                    widths[i] = lw
-
-        # Pass 2: pad and rebuild lines
-        for ln, words, tail in zip(group, rows, tails):
-            cols = min(len(words), len(widths))
-            if cols > 1:
-                for i in range(cols - 1):
-                    w = words[i]
-                    pad = widths[i] - len(w)
-                    if pad > 0:
-                        words[i] = w + (" " * pad)
-
-            head = " ".join(words) if words else ""
-
-            if tail:
-                # Tail is preserved exactly, including leading spaces
-                new_value = (head + tail) if head else tail
-            else:
-                new_value = head
-
-            yield Line(ln.level, new_value)
-
-    def render(
-        self,
-        level: int = 0,
-    ) -> Iterable["Line"]:
-        lines_it = super().render(level)
-
-        group: List["Line"] = []
-        current_level: int = 0  # dummy default, only meaningful when group is non empty
-
-        for ln in lines_it:
-            if not group:
-                # Start new group
-                current_level = ln.level
-                group.append(ln)
-            elif ln.level == current_level:
-                group.append(ln)
-            else:
-                # Flush previous group and start new one
-                yield from self._align_group(group)
-                group = [ln]
-                current_level = ln.level
-
-        # Flush last group
-        if group:
-            yield from self._align_group(group)
+        yield from self.iter_with_margin(self.begin,*self.inner(),self.end)

@@ -18,18 +18,11 @@ from .var import (
     MAdd,
     MAnd,
     MOr,
-    MNot,
-    mNULL,
-    mTargetVar,
-    mFirstPrerequisiteVar,
-    mPrerequisitesVar
+    MNot
 )
 
 from .rule import (
-    MRule,
-    MPhonyRule,
-    MDefaultRule,
-    MAllRule
+    MRule
 )
 
 from .assignment import (
@@ -108,9 +101,7 @@ __all__ = [
     "MNot",
     # const
     "mNULL",
-    "mTargetVar",
-    "mFirstPrerequisiteVar",
-    "mPrerequisitesVar"
+    "mTargetVar"
 
     # assignment
     "MAssignment",
@@ -154,9 +145,6 @@ __all__ = [
 
     #rule
     "MRule",
-    "MPhonyRule",
-    "MDefaultRule",
-    "MAllRule",
 
     #functions
     "all",

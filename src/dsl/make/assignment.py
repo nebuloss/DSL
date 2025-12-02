@@ -1,5 +1,4 @@
-from dsl.container import WordAlignedStack
-from dsl.content import TextNode
+from dsl.content import TextNode,WordAlignedStack
 from dsl.make.var import MExpr, MVar
 
 class MAssignment(TextNode):
@@ -36,6 +35,7 @@ class MAppend(MAssignment):
     def __init__(self, var: MVar, value: MExpr):
         super().__init__(var, value, "+=")
 
-class MAssignmentList(WordAlignedStack[MAssignment]):
+class MAssignmentList(WordAlignedStack):
     def __init__(self,*assignments:MAssignment):
         super().__init__(*assignments,limit=3)
+        

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, NamedTuple, Self, Set, Tuple
+from typing import Iterator, NamedTuple, Optional, Self, Set, Tuple
 
 class Line(NamedTuple):
     level: int
@@ -49,3 +49,29 @@ class Node(ABC):
         """
         if tags and all(t in self._tags for t in tags):
             yield self
+
+
+class NullNode(Node):
+    """
+    Singleton node that renders to nothing.
+    Used instead of None wherever a Node is required but empty output is desired.
+    """
+
+    _instance: Optional["NullNode"] = None
+
+    def __new__(cls) -> "NullNode":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            # Explicitly call Node.__init__ once
+            Node.__init__(cls._instance)
+        return cls._instance
+
+    def render(self, level: int = 0) -> Iterator[Line]:
+        return 
+        yield
+
+    def __repr__(self) -> str:
+        return "NullNode()"
+
+
+NULL_NODE = NullNode()

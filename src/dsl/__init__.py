@@ -20,28 +20,30 @@ from .var import (
 from .node import (
     Node,
     Line,
+    NullNode,
+    NULL_NODE
 )
 
 from .content import (
-    NullNode,
-    NULL_NODE,
-    GenericTextNode,
+    LinesNode,
     TextNode,
     FixedTextNode,
     BlankLineNode,
+    WordsNode,
+    WordlistNode,
+    WordAlignedStack
 )
 
 from .container import (
     ContainerNode,
     SimpleNodeStack,
     NodeStack,
-    IndentedNodeStack,
+    IndentedNode,
     NodeBlock,
     DelimitedNodeBlock,
-    WordAlignedStack,
 )
 
-#from . import kconfig
+# from . import kconfig
 from . import make
 
 __all__ = [
@@ -66,21 +68,22 @@ __all__ = [
     "Line",
     "NullNode",
     "NULL_NODE",
-    "GenericTextNode",
+    "LinesNode",
     "TextNode",
     "FixedTextNode",
     "BlankLineNode",
+    "WordsNode",
+    "WordlistNode",
+    "WordAlignedStack",
 
     # containers
     "ContainerNode",
     "SimpleNodeStack",
     "NodeStack",
-    "IndentedNodeStack",
+    "IndentedNode",
     "NodeBlock",
     "DelimitedNodeBlock",
-    "WordAlignedStack",
-
     # sublanguages
-#    "kconfig",
+    # "kconfig",
     "make",
 ]
