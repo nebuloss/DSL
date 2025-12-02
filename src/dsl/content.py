@@ -126,27 +126,22 @@ class WordlistNode(WordsNode):
     def words(self) -> Iterator[str]:
         return iter(self._words)
 
-class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
+class WordAlignedStack[TChild:WordsNode](LinesNode, SimpleNodeStack[TChild]):
     """
     Align WordsNode children on word boundaries.
 
     - Each child provides its words via child.words()
-    - Each child has a separator via child.sep (any length)
+    - Each child has a separator via child.sep (single character)
     - For alignment we treat each aligned word as a "cell" of `word + sep`,
       except the suffix part, which is left untouched.
 
-    If `limit` is set, only the first `limit` word columns across all rows
-    participate in alignment. Everything from column `limit` onward is
-    considered part of the suffix and left unchanged.
+    All word columns across all rows participate in alignment:
+    for each row, all words except the last one form the aligned cells,
+    and the last word (if present) is part of the suffix.
     """
 
-    def __init__(self, *children: WordsNode, limit: Optional[int] = None):
+    def __init__(self, *children: TChild):
         SimpleNodeStack.__init__(self, *children)
-        self._limit: Optional[int] = limit
-
-    @property
-    def limit(self) -> Optional[int]:
-        return self._limit
 
     # ---- helpers ----
 
@@ -180,8 +175,9 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
         base = cell + (sep * length)
         return base[:length]
 
-    @staticmethod
+    @classmethod
     def _pad_cells(
+        cls,
         cells: List[str],
         lengths: List[int],
         sep: str,
@@ -205,7 +201,7 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
         result: List[str] = []
         for i, c in enumerate(cells):
             if i < align_cols:
-                result.append(WordAlignedStack._pad_cell(c, lengths[i], sep))
+                result.append(cls._pad_cell(c, lengths[i], sep))
             else:
                 result.append(c)
         return result
@@ -213,7 +209,7 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
     # ---- LinesNode API ----
 
     def lines(self) -> Iterator[str]:
-        children: List[WordsNode] = list(self)
+        children: List[TChild] = list(self)
         if not children:
             return
 
@@ -225,19 +221,8 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
             return
 
         max_cols = max(len(words) for words in rows)
-        if max_cols == 0:
-            for child in children:
-                yield from child.lines()
-            return
-
-        # How many word columns participate in alignment
-        if self._limit is None:
-            align_words = max_cols
-        else:
-            align_words = max(0, min(self._limit, max_cols))
-
-        # If 0 or 1 participating word, no gap to align
-        if align_words <= 1:
+        if max_cols <= 1:
+            # 0 or 1 word per line: nothing to align, delegate
             for child in children:
                 yield from child.lines()
             return
@@ -249,13 +234,12 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
 
         for words, sep in zip(rows, seps):
             n = len(words)
-            local_align_words = min(align_words, n)
-            aligned_cells = max(0, local_align_words - 1)
+            aligned_cells = max(0, n - 1)
 
             # cells: word + sep for aligned part
             cells = [w + sep for w in words[:aligned_cells]]
 
-            # suffix: everything from aligned_cells onward
+            # suffix: everything from aligned_cells onward (usually last word)
             suffix_words = words[aligned_cells:]
             suffix = sep.join(suffix_words) if suffix_words else ""
 
@@ -272,4 +256,3 @@ class WordAlignedStack(LinesNode, SimpleNodeStack[WordsNode]):
             else:
                 padded = self._pad_cells(cells, max_lengths, sep)
                 yield "".join(padded) + suffix
-

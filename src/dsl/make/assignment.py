@@ -1,7 +1,11 @@
-from dsl.content import TextNode,WordAlignedStack
+from abc import ABC, abstractmethod
+from typing import Iterator
+
+from dsl.content import WordAlignedStack, WordsNode
 from dsl.make.var import MExpr, MVar
 
-class MAssignment(TextNode):
+
+class MAssignment(WordsNode, ABC):
     """
     VAR op VALUE
 
@@ -12,30 +16,62 @@ class MAssignment(TextNode):
       +=   append
     """
 
-    def __init__(self, var: MVar, value: MExpr, op: str = "="):
-        op = op.strip()
-        if op not in ("=", ":=", "?=", "+="):
-            raise ValueError(f"Invalid assignment operator: {op}")
-        super().__init__(f"{var.name} {op} {value}")
+    @property
+    @abstractmethod
+    def op(self) -> str:
+        raise NotImplementedError
+
+    def __init__(self, var: MVar, value: MExpr, sep: str = " ") -> None:
+        super().__init__(sep=sep)   # important: init WordsNode / Node
+        self._var = var
+        self._value = value
+
+    @property
+    def var(self) -> MVar:
+        return self._var
+
+    @property
+    def value(self) -> MExpr:
+        return self._value
+
+    def words(self) -> Iterator[str]:
+        yield str(self.var)
+        yield self.op
+        yield str(self.value)
 
 
 class MSet(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "=")
+    @property
+    def op(self) -> str:
+        return "="
+
 
 class MSetImmediate(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, ":=")
+    @property
+    def op(self) -> str:
+        return ":="
+
 
 class MSetDefault(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "?=")
+    @property
+    def op(self) -> str:
+        return "?="
+
 
 class MAppend(MAssignment):
-    def __init__(self, var: MVar, value: MExpr):
-        super().__init__(var, value, "+=")
+    @property
+    def op(self) -> str:
+        return "+="
 
-class MAssignmentList(WordAlignedStack):
-    def __init__(self,*assignments:MAssignment):
-        super().__init__(*assignments,limit=3)
-        
+
+class MAssignmentList(WordAlignedStack[MAssignment]):
+    """
+    Align a list of assignments on the operator column.
+
+    Example output:
+
+      VAR1   = value1
+      LONGER := value2
+      X      ?= default
+    """
+    pass
