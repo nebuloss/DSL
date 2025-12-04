@@ -3,10 +3,11 @@ from typing import Iterator
 
 from dsl.container import SimpleNodeStack
 from dsl.content import WordAlignedStack, WordsNode
+from dsl.generic_args import GenericArgsMixin
 from dsl.make.var import MExpr, MVar
 
 
-class MAssignment(WordsNode, ABC):
+class MAssignment(GenericArgsMixin,WordsNode):
     """
     VAR op VALUE
 
@@ -17,15 +18,15 @@ class MAssignment(WordsNode, ABC):
       +=   append
     """
 
-    @property
-    @abstractmethod
-    def op(self) -> str:
-        raise NotImplementedError
-
     def __init__(self, var: MVar, value: MExpr, sep: str = " ") -> None:
         super().__init__(sep=sep)   # important: init WordsNode / Node
         self._var = var
         self._value = value
+        self._op= self.get_arg(0)
+
+    @property
+    def op(self) -> str:
+        return self._op
 
     @property
     def var(self) -> MVar:
@@ -41,29 +42,10 @@ class MAssignment(WordsNode, ABC):
         yield str(self.value)
 
 
-class MSet(MAssignment):
-    @property
-    def op(self) -> str:
-        return "="
-
-
-class MSetImmediate(MAssignment):
-    @property
-    def op(self) -> str:
-        return ":="
-
-
-class MSetDefault(MAssignment):
-    @property
-    def op(self) -> str:
-        return "?="
-
-
-class MAppend(MAssignment):
-    @property
-    def op(self) -> str:
-        return "+="
-
+MSet=MAssignment["="]
+MSetImmediate=MAssignment[":="]
+MSetDefault=MAssignment["?="]
+MAppend=MAssignment["+="]
 
 class MAssignmentList(WordAlignedStack[MAssignment]):
     """
