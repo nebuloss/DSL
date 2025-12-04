@@ -4,7 +4,7 @@ from typing import Optional, Union
 from dsl.container import NodeBlock
 from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KConst, KConstBool, KConstHex, KConstInt, KConstString
+from dsl.kconfig.const import KConst, KBool, KConstHex, KConstInt, KConstString
 from dsl.kconfig.core import KElement
 from dsl.kconfig.var import KExpr, KExpr, KVar
 
@@ -65,7 +65,7 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
     def add_default(
         self,
         value: Union[KVar, ConstT],
-        when: KExpr = KConstBool.true(),
+        when: KExpr = KBool.true(),
     ) -> "KOption[ConstT]":
         """
         Add a 'default' line.
@@ -77,7 +77,7 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
         wl=WordlistNode("default",value)
         self._default_list.append(wl)
 
-        if when and not KConstBool.isTrue(when):
+        if when and not KBool.isTrue(when):
             wl.append("if")
             wl.append(when)
 
@@ -85,20 +85,20 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
     def add_depends(self, *conds: KExpr) -> "KOption[ConstT]":
         for cond in conds:
-            if not KConstBool.isTrue(cond):
+            if not KBool.isTrue(cond):
                 self._dependency_list.append(WordlistNode("depends on",cond))
         return self
     
     def add_selects(self, *vars: KExpr) -> "KOption[ConstT]":
         for var in vars:
-            if not KConstBool.isTrue(var):
+            if not KBool.isTrue(var):
                 self._select_list.append(WordlistNode("select",var))
         return self
 
 
 # ---------- concrete typed options ----------
 
-class KOptionBool(KOption[KConstBool]):
+class KOptionBool(KOption[KBool]):
     def __init__(
         self,
         name: KVar,
@@ -122,10 +122,10 @@ class KOptionHex(KOption[KConstHex]):
         super().__init__(name, prompt)
 
 
-class KMenuConfig(KOption[KConstBool]):
+class KMenuConfig(KOption[KBool]):
     def __init__(self, name: KVar, prompt: str):
         super().__init__(name,prompt, keyword="menuconfig")
 
-class KChoiceHeader(KOption[KConstBool]):
+class KChoiceHeader(KOption[KBool]):
     def __init__(self, prompt: str):
         super().__init__(None, prompt, keyword="choice")

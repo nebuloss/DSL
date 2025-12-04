@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from dsl.make.var import MConst, MExpr, MVar, MakeOps
+from dsl.make.var import MBool, MExpr, MString, MVar, MakeOps
 from dsl.var import VarExpr
 
 class MFunc(VarExpr[MakeOps]):
@@ -62,7 +62,7 @@ class MIfFunc(MFunc):
         otherwise: Optional[MExpr] = None,
     ):
         if then is None:
-            then = MConst.false()
+            then = MBool.false()
         args: List[MExpr] = [cond, then]
         if otherwise is not None:
             args.append(otherwise)
@@ -97,7 +97,7 @@ class MCallFunc(MFunc):
         if not isinstance(name, MVar):
             raise TypeError(f"call name must be MVar, got {type(name).__name__}")
         # Encode macro name as a plain identifier token
-        super().__init__("call", MConst(name.name), *args)
+        super().__init__("call", MString(name.name), *args)
 
 
 class MForeachFunc(MFunc):
@@ -107,4 +107,4 @@ class MForeachFunc(MFunc):
         if not isinstance(var, MVar):
             raise TypeError(f"foreach variable must be MVar, got {type(var).__name__}")
         # var is passed as plain identifier, not $(var)
-        super().__init__("foreach", MConst(var.name), items, body)
+        super().__init__("foreach", MString(var.name), items, body)

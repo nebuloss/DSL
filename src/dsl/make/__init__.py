@@ -13,8 +13,9 @@ from .var import (
     MExpr,
     MNull,
     mNULL,
-    MConst,
     MVar,
+    MBool,
+    MString,
     MArg,
     MAdd,
     MAnd,
@@ -76,13 +77,13 @@ from .block import (
 )
 
 def any(*exprs:MExpr)->MExpr:
-    result=MConst.false()
+    result=MBool.false()
     for var in exprs:
         result|=var
     return result
 
 def all(*exprs:MExpr)->MExpr:
-    result=MConst.true()
+    result=MBool.true()
     for var in exprs:
         result&=var
     return result
@@ -101,7 +102,6 @@ __all__ = [
     "MakeOps",
     "MExpr",
     "MNull",
-    "MConst",
     "MVar",
     "MArg",
     "MAdd",
@@ -109,6 +109,8 @@ __all__ = [
     "MOr",
     "MNot",
     # const
+    "MBool",
+    "MString",
     "mNULL",
     "mTargetVar",
     "mFirstPrerequisiteVar",

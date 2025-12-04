@@ -18,7 +18,7 @@ from .var import (
 
 from .const import (
     KConst,
-    KConstBool,
+    KBool,
     KConstInt,
     KConstString,
     KConstHex,
@@ -72,7 +72,7 @@ __all__ = [
     "KOr",
 
     # const
-    "KConstBool",
+    "KBool",
     "KConstInt",
     "KConstString",
     "KConstHex",

@@ -2,7 +2,7 @@ from abc import abstractmethod
 from typing import Any, Union
 
 from dsl.kconfig.var import KconfigOps
-from dsl.var import VarConst
+from dsl.var import VarBool, VarConst
 
 class KConst(VarConst[KconfigOps]):
     """
@@ -18,7 +18,7 @@ class KConst(VarConst[KconfigOps]):
     def typename(cls) -> str:
         raise NotImplementedError
 
-class KConstBool(KConst):
+class KBool(VarBool[KconfigOps]):
 
     def __init__(self, val: Union[str, bool, int]):
         if isinstance(val, bool):
@@ -38,19 +38,19 @@ class KConstBool(KConst):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return "y" if bool(self.val) else "n"
+        return "y" if self.value() else "n"
 
     @classmethod
     def typename(cls) -> str:
         return "bool"
     
     @staticmethod
-    def true() -> "KConstBool":
-        return KConstBool(True)
+    def true() -> "KBool":
+        return KBool(True)
 
     @staticmethod
-    def false() -> "KConstBool":
-        return KConstBool(False)
+    def false() -> "KBool":
+        return KBool(False)
 
 
 class KConstInt(KConst):
@@ -70,7 +70,7 @@ class KConstInt(KConst):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return str(int(self.val))
+        return str(int(self._val))
 
     @classmethod
     def typename(cls) -> str:
@@ -87,7 +87,7 @@ class KConstString(KConst):
         return s.replace("\\", "\\\\").replace('"', '\\"')
 
     def __str__(self) -> str:
-        return f"\"{self._escape_string(str(self.val))}\""
+        return f"\"{self._escape_string(str(self._val))}\""
 
     @classmethod
     def typename(cls) -> str:
@@ -112,10 +112,10 @@ class KConstHex(KConst):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return f"0x{int(self.val):X}"
+        return f"0x{int(self._val):X}"
 
     @classmethod
     def typename(cls) -> str:
         return "hex"
 
-KconfigOps.Const=KConstBool
+KconfigOps.Bool=KBool

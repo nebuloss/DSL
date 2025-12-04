@@ -13,6 +13,7 @@ from dsl import (
     VarOr,
     VarAdd,
 )
+from dsl.var import VarBool, VarString
 
 
 class MakeOps(LanguageOps):
@@ -30,20 +31,23 @@ class MNull(VarNull[MakeOps]):
     
 mNULL=MNull()
 
-class MConst(VarConst[MakeOps]):
-    def __str__(self) -> str:
-        # Booleans: True -> "1", False -> ""
-        if self.val is True:
+
+class MBool(VarBool[MakeOps]):
+    def __str__(self):
+        if self.value:
             return "1"
-        if self.val is False:
-            return ""
-        # Any other constant prints as-is (non-empty strings are truthy in $(if ...))
-        return str(self.val)
+        
+        return ""
     
-class MVarBase(VarName[MakeOps]):
+class MString(VarString[MakeOps]):
+    def __str__(self):
+        return self.value
+       
+
+class MVarName(VarName[MakeOps]):
     pass
 
-class MVar(MVarBase):
+class MVar(MVarName):
     def __init__(self, name):
         super().__init__(name, special_chars="-.")
 
@@ -56,7 +60,7 @@ class MArg(MVar):
             raise TypeError(f"Expected int got {type(n).__name__}")
         super().__init__(str(n))
 
-class MSpecialVar(MVarBase):
+class MSpecialVar(MVarName):
     def __init__(self, name):
         if len(name)!=1:
             raise ValueError("special variable in makefile have a one character length")
@@ -94,8 +98,11 @@ class MAdd(VarAdd[MakeOps]):
         left = self.left
         right = self.right
 
-        if isinstance(left, MConst) and isinstance(right, MConst):
-            return MConst(self._join(left, right))
+        if isinstance(left, MString) and isinstance(right, MString):
+            return MString(self._join(left, right))
+        
+        if isinstance(left,MBool) and isinstance(right,MBool):
+            return MOr(left,right)
 
         return self
 
@@ -148,7 +155,7 @@ class MNot(VarNot[MakeOps]):
 
 # ---------- Fill MakeOps table ----------
 
-MakeOps.Const = MConst
+MakeOps.Bool = MBool
 MakeOps.Name = MVar
 MakeOps.Not = MNot
 MakeOps.And = MAnd
