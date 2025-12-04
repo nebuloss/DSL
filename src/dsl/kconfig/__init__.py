@@ -2,7 +2,6 @@ from .core import (
     KConfig,
     KElement,
     KList,
-    KStringKey,
     KSource,
     KComment,
 )
@@ -11,7 +10,6 @@ from .var import (
     KconfigOps,
     KVar,
     KExpr,
-    KConst,
     KExpr,
     KNot,
     KAnd,
@@ -19,6 +17,7 @@ from .var import (
 )
 
 from .const import (
+    KConst,
     KConstBool,
     KConstInt,
     KConstString,
@@ -59,7 +58,6 @@ __all__ = [
     "KConfig",
     "KElement",
     "KList",
-    "KStringKey",
     "KSource",
     "KComment",
 

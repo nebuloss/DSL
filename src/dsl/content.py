@@ -1,8 +1,8 @@
 from typing import Iterator, List
 
-from dsl.node import IterableNode, Line, ListNode
+from dsl.node import IterableNode, Line, ListNode, SupportsStr
 
-class LinesNode(IterableNode[str]):
+class LinesNode(IterableNode[SupportsStr]):
     """
     Base class for content nodes that render in terms of lines.
     Subclasses implement lines() and return raw strings without indentation.
@@ -11,9 +11,9 @@ class LinesNode(IterableNode[str]):
     def render(self, level: int = 0) -> Iterator[Line]:
         lvl = max(0, int(level))
         for value in self:
-            yield Line(lvl, value)
+            yield Line(lvl, str(value))
 
-class WordsNode(IterableNode[str]):
+class WordsNode(IterableNode[SupportsStr]):
     """
     Base class for nodes expressed as words.
 
@@ -28,10 +28,13 @@ class WordsNode(IterableNode[str]):
     @property
     def sep(self) -> str:
         return self._sep
+    
+    def line(self)-> str:
+        return self.sep.join(str(word) for word in self)
 
     def render(self, level: int = 0) -> Iterator[Line]:
         # Default behavior: one line built from all words.
-        yield Line(level,self.sep.join(self))
+        yield Line(level,self.line())
 
 class BlankLineNode(LinesNode):
     """Vertical space: N empty lines."""
@@ -49,14 +52,14 @@ class BlankLineNode(LinesNode):
         for i in range(self.count):
             yield ""
 
-class TextNode(ListNode[str],LinesNode):
+class TextNode(ListNode[SupportsStr],LinesNode):
     """
     Default relative text node.
     Indentation level comes from render(level).
     """
     pass
 
-class WordlistNode(ListNode[str],WordsNode):
+class WordlistNode(ListNode[SupportsStr],WordsNode):
     """
     Basic concrete WordsNode backed by a list of words.
 
@@ -145,12 +148,12 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
 
     def __iter__(self) -> Iterator[str]:
         children: List[TChild] = list(super().__iter__())
- #       print(f"children={children}")
+        print(f"children={children}")
         if not children:
             return
 
         # Extract words and separators from children
-        rows: List[List[str]] = [list(c) for c in children]
+        rows: List[List[str]] = [list(str(word) for word in c) for c in children]
         seps: List[str] = [c.sep for c in children]
 
         if not any(rows):
@@ -160,7 +163,7 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
         if max_cols <= 1:
             # 0 or 1 word per line: nothing to align, delegate
             for child in children:
-                yield from child.lines()
+                yield child.line()
             return
 
         # Pass 1: build cells/suffixes and compute max lengths

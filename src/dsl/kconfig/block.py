@@ -1,16 +1,14 @@
 # ===== Block constructs: if / menu =====
 
-from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from abc import abstractmethod,ABC
 from dsl.container import DelimitedNodeBlock
-from dsl.content import TextNode
-from dsl.kconfig.core import KConfig, KElement, KStringKey
+from dsl.content import TextNode, WordlistNode
+from dsl.kconfig.const import KConstString
+from dsl.kconfig.core import KConfig, KElement
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
 from dsl.kconfig.var import KExpr
 
-TChildK = TypeVar("TChildK", bound=KElement)
-
-class KBlock(DelimitedNodeBlock[TChildK,KElement,TextNode],Generic[TChildK]):
+class KBlock[TChildK:KElement](DelimitedNodeBlock[TChildK,KElement,TextNode],ABC):
     """
     Helper for simple:
 
@@ -46,7 +44,7 @@ class KIf(KBlock[KElement]):
         return "if"
 
     def __init__(self, condition: KExpr, *blocks: KElement):
-        super().__init__(TextNode(f"if {condition}"), *blocks)
+        super().__init__(WordlistNode(self.keyword,condition), *blocks)
 
 
 class KMenu(KBlock[KElement]):
@@ -60,7 +58,7 @@ class KMenu(KBlock[KElement]):
         return "menu"
     
     def __init__(self, title: str, *blocks: KElement):
-        super().__init__(KStringKey("menu", title), *blocks)
+        super().__init__(WordlistNode(self.keyword, KConstString(title)), *blocks)
 
 
 # ===== Choice: special header block =====

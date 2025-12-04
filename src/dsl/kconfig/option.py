@@ -4,9 +4,9 @@ from typing import Optional, Union
 from dsl.container import NodeBlock
 from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
-from dsl.kconfig.core import KElement, KStringKey
-from dsl.kconfig.var import KConst, KExpr, KExpr, KVar
+from dsl.kconfig.const import KConst, KConstBool, KConstHex, KConstInt, KConstString
+from dsl.kconfig.core import KElement
+from dsl.kconfig.var import KExpr, KExpr, KVar
 
 class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
     """
@@ -31,17 +31,18 @@ class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
     ):
         self._name = name
         # Resolve ConstT from generics (like VarExpr does for OpsT)
-        self._const_type:KConst=self.get_arg(0)
+        const_type:KConst=self.get_arg(0)
 
-        if name is None:
-            begin_node = WordlistNode(keyword)
-        else:
-            begin_node = WordlistNode(keyword,name)
+        begin_node = WordlistNode(keyword)
+        prompt_node=WordlistNode(const_type.typename())
 
-        if prompt is None:
-            prompt_node=WordlistNode(self._const_type.typename())
+        if name:
+            begin_node.append(name)
+
+        if prompt:
+            prompt_node.append(KConstString(prompt))
         else:
-            prompt_node=WordlistNode(self._const_type.typename(), KConstString(prompt))
+            prompt_node=WordlistNode(const_type.typename(), KConstString(prompt))
 
         self._default_list=WordAlignedStack[WordlistNode]()
         self._dependency_list=WordAlignedStack[WordlistNode]()
@@ -73,22 +74,25 @@ class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
           - KVar   -> used directly as symbol name
           - ConstT -> must match this option's constant type
         """
+        wl=WordlistNode("default",value)
+        self._default_list.append(wl)
 
-        if when is None or KConst.isTrue(when):
-            self._default_list.append(TextNode(f"default {value}"))
-        else:
-            self._default_list.append(TextNode(f"default {value} if {when}"))
+        if when and not KConstBool.isTrue(when):
+            wl.append("if")
+            wl.append(when)
+
         return self
 
     def add_depends(self, *conds: KExpr) -> "KOption[ConstT]":
         for cond in conds:
-            if not KConst.isTrue(cond):
-                self._dependency_list.append(TextNode(f"depends on {cond}"))
+            if not KConstBool.isTrue(cond):
+                self._dependency_list.append(WordlistNode("depends on",cond))
         return self
     
     def add_selects(self, *vars: KExpr) -> "KOption[ConstT]":
         for var in vars:
-            self._select_list.append(TextNode(f"select {var}"))
+            if not KConstBool.isTrue(var):
+                self._select_list.append(WordlistNode("select",var))
         return self
 
 

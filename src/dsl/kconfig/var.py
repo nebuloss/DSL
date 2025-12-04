@@ -64,9 +64,6 @@ class KOr(VarOr[KconfigOps]):
 
 
 # ---------- Fill KconfigOps table ----------
-from .const import KConst
-
-KconfigOps.Const = KConst
 KconfigOps.Name = KExpr
 KconfigOps.Not = KNot
 KconfigOps.And = KAnd

@@ -17,14 +17,6 @@ class KConst(VarConst[KconfigOps]):
     @abstractmethod
     def typename(cls) -> str:
         raise NotImplementedError
-    
-    @staticmethod
-    def true() -> "KConstBool":
-        return KConstBool(True)
-
-    @staticmethod
-    def false() -> "KConstBool":
-        return KConstBool(False)
 
 class KConstBool(KConst):
 
@@ -51,6 +43,14 @@ class KConstBool(KConst):
     @classmethod
     def typename(cls) -> str:
         return "bool"
+    
+    @staticmethod
+    def true() -> "KConstBool":
+        return KConstBool(True)
+
+    @staticmethod
+    def false() -> "KConstBool":
+        return KConstBool(False)
 
 
 class KConstInt(KConst):
@@ -117,3 +117,5 @@ class KConstHex(KConst):
     @classmethod
     def typename(cls) -> str:
         return "hex"
+
+KconfigOps.Const=KConstBool
