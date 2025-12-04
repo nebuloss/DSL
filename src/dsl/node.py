@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, NamedTuple, Optional, Self, Set, Tuple
+from typing import Iterable, Iterator, List, NamedTuple, Optional, Protocol, Self, Set, Tuple
+
+class SupportsStr(Protocol):
+    def __str__(self) -> str:
+        ...
 
 class Line(NamedTuple):
     level: int
@@ -74,4 +78,71 @@ class NullNode(Node):
         return "NullNode()"
 
 
-NULL_NODE = NullNode()
+nullNode = NullNode()
+
+class IterableNode[TItem](Node,ABC):
+
+    @abstractmethod
+    def __iter__(self)->Iterator[TItem]:
+        raise NotImplementedError
+
+class ListNode[TItem](IterableNode[TItem]):
+    """
+    Generic Node backed by a list of items.
+    Can be reused for nodes that contain other Nodes, strings, etc.
+    """
+
+    def __init__(self, *items: TItem) -> None:
+        super().__init__()
+        self._items: List[TItem] = list(items)
+
+    # ---- mutation ----
+
+    def append(self, item: TItem) -> Self:
+        self._items.append(item)
+        return self
+
+    __iadd__ = append
+
+    def extend(self, items: Iterable[TItem]) -> Self:
+        self._items.extend(items)
+        return self
+
+    # ---- algebra ----
+
+    def __imul__(self, n: int) -> Self:
+        if not isinstance(n, int):
+            raise TypeError("Repetition factor must be an int")
+
+        if n <= 0:
+            self._items.clear()
+            return self
+
+        if n == 1 or not self._items:
+            return self
+
+        self._items *= n
+        return self
+
+    repeat = __imul__
+
+    # ---- sequence protocol ----
+
+    def __getitem__(self, index: int) -> TItem:
+        return self._items[index]
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self) -> Iterator[TItem]:
+        return iter(self._items)
+
+
+class LevelNode(Node):
+    def __init__(self,level:int):
+        super().__init__()
+        self._level=level
+
+    @property
+    def level(self):
+        return self._level

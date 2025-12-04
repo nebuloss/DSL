@@ -4,7 +4,7 @@ from .core import (
     MList,
     MComment,
     MCommand,
-    MShellCommand,
+    MText,
     MLine,
 )
 
@@ -94,7 +94,7 @@ __all__ = [
     "MList",
     "MComment",
     "MCommand",
-    "MShellCommand",
+    "MText",
     "MLine",
 
     # var

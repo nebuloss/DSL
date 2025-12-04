@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Iterator
 
+from dsl.container import SimpleNodeStack
 from dsl.content import WordAlignedStack, WordsNode
 from dsl.make.var import MExpr, MVar
 
@@ -34,7 +35,7 @@ class MAssignment(WordsNode, ABC):
     def value(self) -> MExpr:
         return self._value
 
-    def words(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str]:
         yield str(self.var)
         yield self.op
         yield str(self.value)

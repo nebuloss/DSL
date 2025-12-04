@@ -1,11 +1,12 @@
 from typing import List, cast
 
-from dsl.content import FixedTextNode
+from dsl.container import FixedNode
+from dsl.content import WordlistNode
 from dsl.generic_args import GenericArgsMixin
 from dsl.make.var import MExpr, MVar
 
 
-class MKeyword(FixedTextNode,GenericArgsMixin):
+class MKeyword(GenericArgsMixin,FixedNode[WordlistNode]):
     """
     Simple fixed keyword node.
     The text passed here is the full line content.
@@ -15,11 +16,7 @@ class MKeyword(FixedTextNode,GenericArgsMixin):
         # Extract the keyword from the first token of the text
         self._name=self.get_arg(0)
         self._args=args
-        if args:
-            text=f"{self._name} {" ".join(self._args)}"
-        else:
-            text=self._name
-        super().__init__(text, level=0)
+        FixedNode.__init__(self,WordlistNode(self._name,*args), level=0)
 
     @property
     def name(self) -> str:

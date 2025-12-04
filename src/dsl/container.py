@@ -1,9 +1,7 @@
-from abc import abstractmethod
-from copy import copy
-from typing import Iterable, Iterator, List, Self
-from dsl.node import Line, Node, NULL_NODE
+from typing import Iterable, Iterator
+from dsl.node import IterableNode, LevelNode, Line, ListNode, Node, nullNode
 
-class ContainerNode(Node):
+class ContainerNode[TChild:Node](IterableNode[TChild]):
     """
     Base class for containers of child nodes with a single child type.
 
@@ -13,22 +11,11 @@ class ContainerNode(Node):
     - ensure_type / ensure_child_type centralise runtime checks.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
-
-    @abstractmethod
-    def __iter__(self) -> Iterator["Node"]:
-        """
-        Iterate over direct children of this node.
-        Leaf nodes should return an empty iterator.
-        """
-        raise NotImplementedError
-
     def empty(self) -> bool:
         return next(iter(self), None) is None
     
     def render(self, level: int = 0) -> Iterator[Line]:
-        print(f"{repr(self)} contains {list(iter(self))}")
+#        print(f"{repr(self)} contains {list(iter(self))}")
         for child in self:
             yield from child.render(level)
 
@@ -38,102 +25,36 @@ class ContainerNode(Node):
         for child in self:
             yield from child.find(*tags)
 
-class IndentedNode[TChild:Node](ContainerNode):
-    def __init__(self,child:TChild, level=1):
-        self._level=level
+class SingleContainerNode[TChild:Node](ContainerNode[TChild]):
+    def __init__(self,child:TChild):
+        ContainerNode.__init__(self)
         self._child=child
-        super().__init__()
-
-    @property
-    def level(self)->int:
-        return self._level
-
+    
     @property
     def child(self)->TChild:
         return self._child
-
-    def __iter__(self)-> Iterator["TChild"]:
+    
+    def __iter__(self)-> Iterator[TChild]:
         yield self.child
+
+class IndentedNode[TChild:Node](SingleContainerNode[TChild],LevelNode):
+    def __init__(self,child:TChild, level=1):
+        SingleContainerNode.__init__(self,child)
+        LevelNode.__init__(self,level)
 
     def render(self, level:int = 0):
         yield from self.child.render(level+self.level)
 
-class SimpleNodeStack[TChild: Node](ContainerNode):
-    """
-    Simple vertical container without margins.
-    Renders children one after another in order.
-    """
+class FixedNode[TChild:Node](SingleContainerNode[TChild],LevelNode):
+    def __init__(self,child:TChild, level=0):
+        SingleContainerNode.__init__(self,child)
+        LevelNode.__init__(self,level)
 
-    def __init__(self, *children: TChild):
-        super().__init__()
-        self._children: List[TChild] = []
-        self.extend(children)
-
-    # ---- mutation ----
-
-    def append(self, child: TChild) -> Self:
-        self._children.append(child)
-        return self
-
-    __iadd__ = append
-
-    def extend(self, children: Iterable[TChild]) -> Self:
-        for c in children:
-            self.append(c)
-        return self
-
-    # ---- algebra ----
-
-    def __imul__(self, n: int) -> Self:
-        if not isinstance(n, int):
-            raise TypeError("Repetition factor must be an int")
-
-        if n <= 0:
-            self._children.clear()
-            return self
-
-        if n == 1 or not self._children:
-            return self
-
-        self._children *= n
-        return self
-
-    repeat = __imul__
-
-    def __mul__(self, n: int) -> Self:
-        if not isinstance(n, int):
-            return NotImplemented
-
-        if n <= 0:
-            new = copy(self)
-            new._children = []
-            return new
-
-        new = copy(self)
-        new._children = list(self._children) * n
-        return new
-
-    __rmul__ = __mul__
-
-    def __add__(self, other: Node) -> Self:
-        if not isinstance(other, self.child_type):
-            return NotImplemented
-        new = copy(self)
-        new._children = list(self._children)
-        new.append(other)  # type: ignore[arg-type]
-        return new
-
-    def __getitem__(self, index: int) -> TChild:
-        return self._children[index]
-
-    def __len__(self) -> int:
-        return len(self._children)
-
-    def __iter__(self) -> Iterator[TChild]:
-        # Structural iteration: just children, no decoration
-        return iter(self._children)
-
-    # ---- layout ----
+    def render(self, level:int = 0):
+        yield from self.child.render(self.level)
+    
+class SimpleNodeStack[TChild: Node](ListNode[TChild],ContainerNode[TChild]):
+    pass
 
 class NodeStack[TChild: Node](SimpleNodeStack[TChild]):
     """
@@ -148,7 +69,7 @@ class NodeStack[TChild: Node](SimpleNodeStack[TChild]):
     def __init__(
         self,
         *children: TChild,
-        margin: Node = NULL_NODE,
+        margin: Node = nullNode,
     ):
         super().__init__(*children)
         self._margin:Node=margin
@@ -176,7 +97,7 @@ class NodeBlock[TChild:Node,TBegin: Node](NodeStack[TChild]):
         self,
         begin: TBegin,
         *children: TChild,
-        margin:Node=NULL_NODE,
+        margin:Node=nullNode,
         level:int=1
     ):
         # Type-check begin / end according to TBegin / TEnd
@@ -203,7 +124,7 @@ class DelimitedNodeBlock[TChild:Node,TBegin: Node, TEnd:Node](NodeBlock[TChild,T
             begin: TBegin,
             end: TEnd, 
             *children: TChild, 
-            margin = NULL_NODE,
+            margin = nullNode,
             level:int=1):
         
         super().__init__(begin, *children, margin=margin,level=level)

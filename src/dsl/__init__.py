@@ -21,13 +21,12 @@ from .node import (
     Node,
     Line,
     NullNode,
-    NULL_NODE
+    nullNode
 )
 
 from .content import (
     LinesNode,
     TextNode,
-    FixedTextNode,
     BlankLineNode,
     WordsNode,
     WordlistNode,
@@ -67,10 +66,9 @@ __all__ = [
     "Node",
     "Line",
     "NullNode",
-    "NULL_NODE",
+    "nullNode",
     "LinesNode",
     "TextNode",
-    "FixedTextNode",
     "BlankLineNode",
     "WordsNode",
     "WordlistNode",

@@ -1,29 +1,37 @@
-from abc import ABC, abstractmethod
-from typing import Iterator, Optional, List
+from typing import Iterator, List
 
-from dsl.container import SimpleNodeStack
-from dsl.node import Line, Node
+from dsl.node import IterableNode, Line, ListNode
 
-class LinesNode(Node, ABC):
+class LinesNode(IterableNode[str]):
     """
     Base class for content nodes that render in terms of lines.
     Subclasses implement lines() and return raw strings without indentation.
     """
 
-    @abstractmethod
-    def lines(self) -> Iterator[str]:
-        """
-        Raw text lines (without indentation).
-        A fresh iterator can be created on each call.
-        """
-
-        raise NotImplementedError
-
     def render(self, level: int = 0) -> Iterator[Line]:
         lvl = max(0, int(level))
-        for value in self.lines():
+        for value in self:
             yield Line(lvl, value)
 
+class WordsNode(IterableNode[str]):
+    """
+    Base class for nodes expressed as words.
+
+    Subclasses implement words(), which returns an iterator of words.
+    By default, all words are joined into a single line using sep.
+    """
+
+    def __init__(self, sep: str = " ") -> None:
+        super().__init__()
+        self._sep = sep
+
+    @property
+    def sep(self) -> str:
+        return self._sep
+
+    def render(self, level: int = 0) -> Iterator[Line]:
+        # Default behavior: one line built from all words.
+        yield Line(level,self.sep.join(self))
 
 class BlankLineNode(LinesNode):
     """Vertical space: N empty lines."""
@@ -37,96 +45,26 @@ class BlankLineNode(LinesNode):
         """Number of blank lines."""
         return self._count
 
-    def __len__(self) -> int:
-        return self._count
-
-    def lines(self) -> Iterator[str]:
-        for _ in range(self._count):
+    def __iter__(self)->Iterator[str]:
+        for i in range(self.count):
             yield ""
 
-
-class TextNode(LinesNode):
+class TextNode(ListNode[str],LinesNode):
     """
     Default relative text node.
     Indentation level comes from render(level).
     """
+    pass
 
-    def __init__(self, *lines: str) -> None:
-        super().__init__()
-        self._lines: List[str] = list(lines)
-
-    def lines(self) -> Iterator[str]:
-        return iter(self._lines)
-
-
-class FixedTextNode(TextNode):
-    """
-    Text node with a fixed indentation level given at construction.
-    Ignores the level argument of render().
-    """
-
-    def __init__(self, *lines: str, level: int = 0) -> None:
-        super().__init__(*lines)
-        self._fixed_level = max(0, int(level))
-
-    @property
-    def fixed_level(self) -> int:
-        return self._fixed_level
-
-    def render(self, level: int = 0) -> Iterator[Line]:
-        lvl = self._fixed_level
-        for value in self.lines():
-            yield Line(lvl, value)
-
-
-class WordsNode(LinesNode, ABC):
-    """
-    Base class for nodes expressed as words.
-
-    Subclasses implement words(), which returns an iterator of words.
-    By default, all words are joined into a single line using sep.
-    """
-
-    def __init__(self, sep: str = " ") -> None:
-        super().__init__()
-        if len(sep)!=1:
-            raise ValueError("Expecting one character sep")
-        self._sep = sep
-
-    @property
-    def sep(self) -> str:
-        return self._sep
-
-    @abstractmethod
-    def words(self) -> Iterator[str]:
-        """
-        Raw words for this node.
-        """
-
-        raise NotImplementedError
-
-    def lines(self) -> Iterator[str]:
-        # Default behavior: one line built from all words.
-        yield self._sep.join(self.words())
-
-class WordlistNode(WordsNode):
+class WordlistNode(ListNode[str],WordsNode):
     """
     Basic concrete WordsNode backed by a list of words.
 
       WordListNode("foo", "bar") -> "foo bar"
-
-    You can tweak the separator with sep="," etc.
     """
+    pass
 
-    def __init__(self, *words: str, sep: str = " ") -> None:
-        super().__init__(sep=sep)
-        self._words: List[str] = list(words)
-
-
-    def words(self) -> Iterator[str]:
-        return iter(self._words)
-
-class WordAlignedStack[TChild:WordsNode](LinesNode, SimpleNodeStack[TChild]):
+class WordAlignedContainer[TChild:WordsNode](LinesNode):
     """
     Align WordsNode children on word boundaries.
 
@@ -139,9 +77,6 @@ class WordAlignedStack[TChild:WordsNode](LinesNode, SimpleNodeStack[TChild]):
     for each row, all words except the last one form the aligned cells,
     and the last word (if present) is part of the suffix.
     """
-
-    def __init__(self, *children: TChild):
-        SimpleNodeStack.__init__(self, *children)
 
     # ---- helpers ----
 
@@ -208,13 +143,14 @@ class WordAlignedStack[TChild:WordsNode](LinesNode, SimpleNodeStack[TChild]):
 
     # ---- LinesNode API ----
 
-    def lines(self) -> Iterator[str]:
-        children: List[TChild] = list(self)
+    def __iter__(self) -> Iterator[str]:
+        children: List[TChild] = list(super().__iter__())
+ #       print(f"children={children}")
         if not children:
             return
 
         # Extract words and separators from children
-        rows: List[List[str]] = [list(c.words()) for c in children]
+        rows: List[List[str]] = [list(c) for c in children]
         seps: List[str] = [c.sep for c in children]
 
         if not any(rows):
@@ -256,3 +192,6 @@ class WordAlignedStack[TChild:WordsNode](LinesNode, SimpleNodeStack[TChild]):
             else:
                 padded = self._pad_cells(cells, max_lengths, sep)
                 yield "".join(padded) + suffix
+
+class WordAlignedStack[TChild:WordsNode](WordAlignedContainer[TChild],ListNode[TChild]):
+    pass

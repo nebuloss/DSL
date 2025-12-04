@@ -5,7 +5,8 @@ from typing import Optional
 
 from dsl import Node,BlankLineNode,SimpleNodeStack
 from dsl.container import NodeStack
-from dsl.content import TextNode
+from dsl.content import TextNode, WordlistNode, WordsNode
+from dsl.kconfig.const import KConstString
 
 KElement = Node
 
@@ -18,30 +19,9 @@ class KConfig(NodeStack[KElement]):
 class KList(SimpleNodeStack[KElement]):
     pass
 
-class KStringKey(TextNode):
-    """
-    Render: <keyword> "<escaped value>"
-
-    Examples:
-      prompt "My feature"
-      menu "Main menu"
-      comment "Something"
-      source "path/Kconfig"
-    """
-
-    @staticmethod
-    def escape(s: str) -> str:
-        return s.replace('"', r'\"')
-
-    def __init__(self, keyword: str, value: str):
-        if not isinstance(value,str):
-            raise TypeError("Expecting string value")
-        
-        super().__init__(f'{keyword} "{self.escape(value)}"')
-
 # ===== Simple one-line elements =====
 
-class KSource(KStringKey):
+class KSource(WordlistNode):
     """
     Kconfig source line.
 
@@ -50,8 +30,8 @@ class KSource(KStringKey):
     """
 
     def __init__(self, path: str):
-        super().__init__("source", path)
+        super().__init__("source", KConstString(path))
 
-class KComment(KStringKey):
+class KComment(WordlistNode):
     def __init__(self, comment: str):
-        super().__init__("comment", comment)
+        super().__init__("comment", KConstString(comment))

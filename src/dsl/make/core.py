@@ -1,12 +1,27 @@
 from enum import IntFlag
 import re
-from typing import Iterator, List, Union
+from typing import Iterator, List, Optional, Union
 
 from dsl import TextNode, WordsNode, Node, Line
+from dsl.container import NodeStack, SimpleNodeStack
+from dsl.content import BlankLineNode
+from dsl.node import SupportsStr
 from .var import MExpr
 
 MElement = Node
 
+class Makefile(NodeStack[MElement]):
+    MARGIN:Optional[Node]=BlankLineNode()
+
+    def __init__(self,*elements:MElement):
+        super().__init__(*elements,margin=Makefile.MARGIN)
+
+class MList(SimpleNodeStack[MElement]):
+    pass
+
+class MComment(TextNode):
+    def __init__(self, text: str):
+        super().__init__(f"# {text}" if text else "#")
 
 class MFlag(IntFlag):
     """
@@ -83,23 +98,27 @@ class MLine(MElement):
 
     def render(self, level: int = 0) -> Iterator[Line]:
         """
-        Decorate the underlying node's rendering by prepending the prefix
-        to the first emitted line.
-
-        Subclasses must provide the base rendering via super().render(level)
-        through their content base (TextNode / WordsNode).
+        Decorate the underlying node's rendering by:
+          - prepending the prefix to the first emitted line
+          - escaping all lines except the last one with a trailing backslash
         """
         it = super().render(level)
-        first = next(it, None)
-        if first is None:
+        prev = next(it, None)
+        if prev is None:
             return
 
-        if self._prefix:
-            yield Line(first.level, self._prefix + first.value)
-        else:
-            yield first
+        # Apply prefix to the very first line
+        first_value = self._prefix + prev.value if self._prefix else prev.value
+        prev = Line(prev.level, first_value)
 
-        yield from it
+        for ln in it:
+            # prev is not the last line any more, so escape it if non empty
+            value = prev.value + " \\" if prev.value else prev.value
+            yield Line(prev.level, value)
+            prev = ln
+
+        # Last line: no backslash
+        yield prev
 
 
 
@@ -113,17 +132,9 @@ class MText(MLine, TextNode):
       injects the prefix on the first line.
     """
 
-    def __init__(self, text: Union[str, MExpr], flags: MFlag = MFlag.NONE) -> None:
+    def __init__(self, *text: SupportsStr, flags: MFlag = MFlag.NONE) -> None:
         MLine.__init__(self, flags=flags)
-
-        if isinstance(text, MExpr):
-            value = str(text)
-        elif isinstance(text, str):
-            value = text
-        else:
-            raise TypeError(f"MText expects str or MExpr, got {type(text).__name__}")
-
-        TextNode.__init__(self, value)
+        TextNode.__init__(self, *(str(val) for val in text))
 
 
 class MCommand(MLine, WordsNode):
@@ -150,28 +161,27 @@ class MCommand(MLine, WordsNode):
 
     def __init__(
         self,
-        name: Union[str, MExpr],
-        *args: Union[str, MExpr],
-        sep: str = " ",
+        name: SupportsStr,
+        *args: SupportsStr,
         flags: MFlag = MFlag.NONE,
     ) -> None:
         if isinstance(name, str) and not name:
             raise ValueError("MCommand requires a non empty command name")
 
         MLine.__init__(self, flags=flags)
-        WordsNode.__init__(self, sep=sep)
+        WordsNode.__init__(self, sep=" ")
 
-        self._name: Union[str, MExpr] = name
-        self._args: List[Union[str, MExpr]] = list(args)
+        self._name: SupportsStr = name
+        self._args: List[SupportsStr] = list(args)
 
     # ---- raw API ----
 
     @property
-    def name(self) -> Union[str, MExpr]:
+    def name(self) -> SupportsStr:
         return self._name
 
     @property
-    def args(self) -> List[Union[str, MExpr]]:
+    def args(self) -> List[SupportsStr]:
         return list(self._args)
 
     # ---- escaping helpers ----
@@ -195,7 +205,7 @@ class MCommand(MLine, WordsNode):
         parts = token.split("'")
         return "'" + "'\"'\"'".join(parts) + "'"
 
-    def _format_arg(self, arg: Union[str, MExpr]) -> str:
+    def _format_arg(self, arg: SupportsStr) -> str:
         if isinstance(arg, MExpr):
             # Insert make expression as-is, e.g. $(CC) or $(CFLAGS)
             return str(arg)
@@ -205,7 +215,7 @@ class MCommand(MLine, WordsNode):
 
     # ---- WordsNode API ----
 
-    def words(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str]:
         """
         Pure shell tokens, without make prefix.
         Prefix is injected at render time by MLine.render.
@@ -222,7 +232,7 @@ class MCommand(MLine, WordsNode):
         Fully formatted tokens WITHOUT prefixes.
         This is the "pure shell" view.
         """
-        return list(self.words())
+        return list(self)
 
     @property
     def command(self) -> str:

@@ -3,7 +3,7 @@ from typing import Iterator, Optional, Literal
 
 from dsl.container import NodeBlock
 from dsl.content import WordsNode
-from dsl.node import NULL_NODE, Node
+from dsl.node import nullNode, Node
 from dsl.make.core import MElement
 from dsl.make.var import MConst, MExpr
 
@@ -57,7 +57,7 @@ class MRule(WordsNode, ABC):
     def order_only(self) -> Optional[MExpr]:
         return self._order_only
 
-    def words(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str]:
         # First token is "<targets><op>" so we get "foo:" instead of "foo :"
         left = str(self._targets).strip()
         yield f"{left}{self.op}"
@@ -129,12 +129,12 @@ class MReceipe(NodeBlock[MElement, MRule]):
 
     def __init__(
         self,
-        begin: MRule,
-        *children: MElement,
-        margin: Node = NULL_NODE,
+        rule: MRule,
+        *commands: MElement,
+        margin: Node = nullNode,
         level: int = 1,
     ) -> None:
-        super().__init__(begin, *children, margin=margin, level=level)
+        super().__init__(rule, *commands, margin=margin, level=level)
 
 class MPhony(MStaticRule):
     def __init__(self, rules:MExpr):

@@ -1,8 +1,8 @@
 # ===== Typed options: config / menuconfig =====
 
 from typing import Optional, Union
-from dsl.container import NodeBlock, WordAlignedStack
-from dsl.content import TextNode
+from dsl.container import NodeBlock
+from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.const import KConstBool, KConstHex, KConstInt, KConstString
 from dsl.kconfig.core import KElement, KStringKey
@@ -34,24 +34,26 @@ class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
         self._const_type:KConst=self.get_arg(0)
 
         if name is None:
-            begin = TextNode(f"{keyword}")
+            begin_node = WordlistNode(keyword)
         else:
-            begin = TextNode(f"{keyword} {name}")
-
-        super().__init__(begin)
+            begin_node = WordlistNode(keyword,name)
 
         if prompt is None:
-            self.append(TextNode(self._const_type.typename()))
+            prompt_node=WordlistNode(self._const_type.typename())
         else:
-            self.append(KStringKey(self._const_type.typename(), prompt))
+            prompt_node=WordlistNode(self._const_type.typename(), KConstString(prompt))
 
-        self._default_list=WordAlignedStack[TextNode]()
-        self._dependency_list=WordAlignedStack[TextNode]()
-        self._select_list=WordAlignedStack[TextNode]()
+        self._default_list=WordAlignedStack[WordlistNode]()
+        self._dependency_list=WordAlignedStack[WordlistNode]()
+        self._select_list=WordAlignedStack[WordlistNode]()
 
-        self.append(self._default_list)
-        self.append(self._dependency_list)
-        self.append(self._select_list)
+        super().__init__(
+            begin_node,
+            prompt_node,
+            self._default_list,
+            self._dependency_list,
+            self._select_list
+        )
 
     @property
     def name(self) -> KVar:
