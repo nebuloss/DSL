@@ -3,7 +3,7 @@
 from dsl.container import DelimitedNodeBlock
 from dsl.content import TextNode, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KConstString
+from dsl.kconfig.const import KString
 from dsl.kconfig.core import KConfig, KElement
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
 from dsl.kconfig.var import KExpr
@@ -48,7 +48,7 @@ class KMenu(KSimpleBlock["menu"]):
     endmenu
     """    
     def __init__(self, title:str, *items: KElement):
-        super().__init__(KConstString(title), *items)
+        super().__init__(KString(title), *items)
 
 
 # ===== Choice: special header block =====

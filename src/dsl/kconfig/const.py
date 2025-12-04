@@ -1,22 +1,7 @@
-from abc import abstractmethod
 from typing import Any, Union
 
 from dsl.kconfig.var import KconfigOps
-from dsl.var import VarBool, VarConst
-
-class KConst(VarConst[KconfigOps]):
-    """
-    Abstract base Kconfig constant.
-
-    Subclasses (KConstBool, KConstInt, KConstString, KConstHex) perform
-    validation and normalisation. This class should not be instantiated
-    directly.
-    """
-
-    @classmethod
-    @abstractmethod
-    def typename(cls) -> str:
-        raise NotImplementedError
+from dsl.var import VarBool, VarInt, VarString
 
 class KBool(VarBool[KconfigOps]):
 
@@ -38,22 +23,9 @@ class KBool(VarBool[KconfigOps]):
         super().__init__(v)
 
     def __str__(self) -> str:
-        return "y" if self.value() else "n"
+        return "y" if self.value else "n"
 
-    @classmethod
-    def typename(cls) -> str:
-        return "bool"
-    
-    @staticmethod
-    def true() -> "KBool":
-        return KBool(True)
-
-    @staticmethod
-    def false() -> "KBool":
-        return KBool(False)
-
-
-class KConstInt(KConst):
+class KInt(VarInt[KconfigOps]):
 
     def __init__(self, val: Union[int, str, bool]):
         if isinstance(val, bool):
@@ -72,12 +44,8 @@ class KConstInt(KConst):
     def __str__(self) -> str:
         return str(int(self._val))
 
-    @classmethod
-    def typename(cls) -> str:
-        return "int"
 
-
-class KConstString(KConst):
+class KString(VarString[KconfigOps]):
 
     def __init__(self, val: Any):
         super().__init__(str(val))
@@ -89,12 +57,8 @@ class KConstString(KConst):
     def __str__(self) -> str:
         return f"\"{self._escape_string(str(self._val))}\""
 
-    @classmethod
-    def typename(cls) -> str:
-        return "string"
-
-
-class KConstHex(KConst):
+class KHex(VarInt[KconfigOps]):
+    TYPE="hex"
 
     def __init__(self, val: Union[int, str, bool]):
         if isinstance(val, bool):
@@ -113,9 +77,5 @@ class KConstHex(KConst):
 
     def __str__(self) -> str:
         return f"0x{int(self._val):X}"
-
-    @classmethod
-    def typename(cls) -> str:
-        return "hex"
 
 KconfigOps.Bool=KBool

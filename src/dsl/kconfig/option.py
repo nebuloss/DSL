@@ -4,8 +4,8 @@ from typing import Optional, Union
 from dsl.container import NodeBlock
 from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KConst, KBool, KConstHex, KConstInt, KConstString
-from dsl.kconfig.core import KElement
+from dsl.kconfig.const import KBool, KHex, KInt, KString
+from dsl.kconfig.core import KConst, KElement
 from dsl.kconfig.var import KExpr, KExpr, KVar
 
 class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
@@ -34,15 +34,15 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
         const_type:KConst=self.get_arg(0)
 
         begin_node = WordlistNode(keyword)
-        prompt_node=WordlistNode(const_type.typename())
+        prompt_node=WordlistNode(const_type.TYPE)
 
         if name:
             begin_node.append(name)
 
         if prompt:
-            prompt_node.append(KConstString(prompt))
+            prompt_node.append(KString(prompt))
         else:
-            prompt_node=WordlistNode(const_type.typename(), KConstString(prompt))
+            prompt_node=WordlistNode(const_type.TYPE, KString(prompt))
 
         self._default_list=WordAlignedStack[WordlistNode]()
         self._dependency_list=WordAlignedStack[WordlistNode]()
@@ -107,17 +107,17 @@ class KOptionBool(KOption[KBool]):
         super().__init__(name, prompt)
 
 
-class KOptionString(KOption[KConstString]):
+class KOptionString(KOption[KString]):
     def __init__(self, name: KVar, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 
 
-class KOptionInt(KOption[KConstInt]):
+class KOptionInt(KOption[KInt]):
     def __init__(self, name: KVar, prompt: Optional[str] = None):
         super().__init__(name,prompt)
 
 
-class KOptionHex(KOption[KConstHex]):
+class KOptionHex(KOption[KHex]):
     def __init__(self, name: KVar, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 

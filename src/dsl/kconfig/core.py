@@ -5,10 +5,12 @@ from typing import Optional
 
 from dsl import Node,BlankLineNode,SimpleNodeStack
 from dsl.container import NodeStack
-from dsl.content import TextNode, WordlistNode, WordsNode
-from dsl.kconfig.const import KConstString
+from dsl.content import WordlistNode
+from dsl.kconfig.const import KString
+from dsl.var import VarConst
 
 KElement = Node
+KConst=VarConst
 
 class KConfig(NodeStack[KElement]):
     MARGIN:Optional[Node]=BlankLineNode()
@@ -30,8 +32,8 @@ class KSource(WordlistNode):
     """
 
     def __init__(self, path: str):
-        super().__init__("source", KConstString(path))
+        super().__init__("source", KString(path))
 
 class KComment(WordlistNode):
     def __init__(self, comment: str):
-        super().__init__("comment", KConstString(comment))
+        super().__init__("comment", KString(comment))

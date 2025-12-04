@@ -17,11 +17,10 @@ from .var import (
 )
 
 from .const import (
-    KConst,
     KBool,
-    KConstInt,
-    KConstString,
-    KConstHex,
+    KInt,
+    KString,
+    KHex,
 )
 
 from .option import (
@@ -42,13 +41,13 @@ from .block import (
 )
 
 def any(*exprs:KExpr)->KExpr:
-    result=KConst.false()
+    result=KBool.false()
     for var in exprs:
         result|=var
     return result
 
 def all(*exprs:KExpr)->KExpr:
-    result=KConst.true()
+    result=KBool.true()
     for var in exprs:
         result&=var
     return result
@@ -73,9 +72,9 @@ __all__ = [
 
     # const
     "KBool",
-    "KConstInt",
-    "KConstString",
-    "KConstHex",
+    "KInt",
+    "KString",
+    "KHex",
 
     # option
     "KOption",
