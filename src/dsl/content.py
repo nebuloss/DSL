@@ -28,13 +28,10 @@ class WordsNode(IterableNode[SupportsStr]):
     @property
     def sep(self) -> str:
         return self._sep
-    
-    def line(self)-> str:
-        return self.sep.join(str(word) for word in self)
 
     def render(self, level: int = 0) -> Iterator[Line]:
         # Default behavior: one line built from all words.
-        yield Line(level,self.line())
+        yield Line(level,self.sep.join(str(word) for word in self))
 
 class BlankLineNode(LinesNode):
     """Vertical space: N empty lines."""
@@ -148,7 +145,7 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
 
     def __iter__(self) -> Iterator[str]:
         children: List[TChild] = list(super().__iter__())
-        print(f"children={children}")
+#        print(f"children={children}")
         if not children:
             return
 
@@ -163,7 +160,7 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
         if max_cols <= 1:
             # 0 or 1 word per line: nothing to align, delegate
             for child in children:
-                yield child.line()
+                yield str(child)
             return
 
         # Pass 1: build cells/suffixes and compute max lengths

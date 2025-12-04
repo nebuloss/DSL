@@ -8,7 +8,7 @@ from dsl.kconfig.const import KConst, KConstBool, KConstHex, KConstInt, KConstSt
 from dsl.kconfig.core import KElement
 from dsl.kconfig.var import KExpr, KExpr, KVar
 
-class KOption[ConstT:KConst](NodeBlock[KElement,TextNode],GenericArgsMixin):
+class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
     """
     Generic typed symbol:
 

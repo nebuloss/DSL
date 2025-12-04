@@ -1,14 +1,14 @@
 # ===== Block constructs: if / menu =====
 
-from abc import abstractmethod,ABC
 from dsl.container import DelimitedNodeBlock
 from dsl.content import TextNode, WordlistNode
+from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.const import KConstString
 from dsl.kconfig.core import KConfig, KElement
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
 from dsl.kconfig.var import KExpr
 
-class KBlock[TChildK:KElement](DelimitedNodeBlock[TChildK,KElement,TextNode],ABC):
+class KBlock(GenericArgsMixin,DelimitedNodeBlock[KElement,KElement,TextNode]):
     """
     Helper for simple:
 
@@ -16,14 +16,9 @@ class KBlock[TChildK:KElement](DelimitedNodeBlock[TChildK,KElement,TextNode],ABC
           <children...>
       end<keyword>
     """
-    @classmethod
-    @abstractmethod
-    def keyword(cls) -> str:
-        raise NotImplementedError
 
-
-    def __init__(self, begin: KElement, *children: TChildK):
-        end = TextNode(f"end{self.keyword()}")
+    def __init__(self, begin: KElement, *children: KElement):
+        end = TextNode(f"end{self.get_arg(0)}")
 
         super().__init__(
             begin,
@@ -32,38 +27,33 @@ class KBlock[TChildK:KElement](DelimitedNodeBlock[TChildK,KElement,TextNode],ABC
         )
         self.extend(children)
 
+class KSimpleBlock(KBlock):
+    def __init__(self, arg: KExpr, *items:KElement):
+        super().__init__(WordlistNode(self.get_arg(0),arg), *items)
 
-class KIf(KBlock[KElement]):
+class KIf(KSimpleBlock["if"]):
     """
     if CONDITION
         ...
     endif
     """
-    @classmethod
-    def keyword(cls)->str:
-        return "if"
-
-    def __init__(self, condition: KExpr, *blocks: KElement):
-        super().__init__(WordlistNode(self.keyword,condition), *blocks)
+    def __init__(self, condition: KExpr, *items: KElement):
+        super().__init__(condition, *items)
 
 
-class KMenu(KBlock[KElement]):
+class KMenu(KSimpleBlock["menu"]):
     """
     menu "Title"
         ...
     endmenu
-    """
-    @classmethod
-    def keyword(cls)->str:
-        return "menu"
-    
-    def __init__(self, title: str, *blocks: KElement):
-        super().__init__(WordlistNode(self.keyword, KConstString(title)), *blocks)
+    """    
+    def __init__(self, title:str, *items: KElement):
+        super().__init__(KConstString(title), *items)
 
 
 # ===== Choice: special header block =====
 
-class KChoice(KBlock[KOptionBool]):
+class KChoice(KBlock["choice"]):
     """
     choice
         prompt "..."
@@ -74,10 +64,6 @@ class KChoice(KBlock[KOptionBool]):
     Properties (prompt, type) are part of the begin block.
     Only the alternatives are children of this Choice node.
     """
-    @classmethod
-    def keyword(cls)->str:
-        return "choice"
-
     def __init__(
         self,
         prompt: str,
