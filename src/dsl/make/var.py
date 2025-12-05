@@ -2,49 +2,47 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from dsl import (
+from dsl.var import (
+    Language,
+    Language,
     LanguageOps,
-    VarExpr,
-    VarConst,
-    VarName,
-    VarNot,
-    VarAnd,
-    VarNull,
-    VarOr,
+    LanguageTypes, 
     VarAdd,
+    VarAnd, 
+    VarBool, 
+    VarExpr, 
+    VarName,
+    VarNot, 
+    VarNull,
+    VarOr, 
+    VarString
 )
-from dsl.var import VarBool, VarString
 
 
-class MakeOps(LanguageOps):
-    """LanguageOps table for Makefile-like expressions."""
+class MLanguage(Language):
     pass
-
 
 # ---------- Core Makefile expression types ----------
 
 MExpr = VarExpr
 
-class MNull(VarNull[MakeOps]):
+class MNull(VarNull[MLanguage]):
     def __str__(self):
         return ""
     
-mNULL=MNull()
-
-
-class MBool(VarBool[MakeOps]):
+class MBool(VarBool[MLanguage]):
     def __str__(self):
         if self.value:
             return "1"
         
         return ""
     
-class MString(VarString[MakeOps]):
+class MString(VarString[MLanguage]):
     def __str__(self):
         return self.value
        
 
-class MVarName(VarName[MakeOps]):
+class MVarName(VarName[MLanguage]):
     pass
 
 class MVar(MVarName):
@@ -68,12 +66,8 @@ class MSpecialVar(MVarName):
 
     def __str__(self):
         return "$"+self.name
-    
-mTargetVar=MSpecialVar("@")
-mFirstPrerequisiteVar=MSpecialVar("<")
-mPrerequisitesVar=MSpecialVar("^")
 
-class MAdd(VarAdd[MakeOps]):
+class MAdd(VarAdd[MLanguage]):
     """
     Concatenation for Make expressions: expr + expr.
 
@@ -94,23 +88,11 @@ class MAdd(VarAdd[MakeOps]):
             return ls
         return f"{ls} {rs}"
 
-    def simplify(self) -> MExpr:
-        left = self.left
-        right = self.right
-
-        if isinstance(left, MString) and isinstance(right, MString):
-            return MString(self._join(left, right))
-        
-        if isinstance(left,MBool) and isinstance(right,MBool):
-            return MOr(left,right)
-
-        return self
-
     def __str__(self) -> str:
         return self._join(self.left, self.right)
 
 
-class MAnd(VarAnd[MakeOps]):
+class MAnd(VarAnd[MLanguage]):
     def __str__(self) -> str:
         # Flatten nested ANDs so we can emit a single $(and a,b,c)
         terms: List[str] = []
@@ -130,7 +112,7 @@ class MAnd(VarAnd[MakeOps]):
         return f"$(and {','.join(terms)})"
 
 
-class MOr(VarOr[MakeOps]):
+class MOr(VarOr[MLanguage]):
     def __str__(self) -> str:
         # Flatten nested ORs so we can emit a single $(or a,b,c)
         terms: List[str] = []
@@ -149,17 +131,28 @@ class MOr(VarOr[MakeOps]):
             return terms[0]
         return f"$(or {','.join(terms)})"
 
-class MNot(VarNot[MakeOps]):
+class MNot(VarNot[MLanguage]):
     def __str__(self) -> str:
         return f"$(if {self.child},,1)"
 
 # ---------- Fill MakeOps table ----------
 
-MakeOps.Bool = MBool
-MakeOps.Name = MVar
-MakeOps.Not = MNot
-MakeOps.And = MAnd
-MakeOps.Or = MOr
-MakeOps.Add = MAdd
-MakeOps.Null= MNull
-# MakeOps.Sub/Mul/Div remain None
+MLanguage.types= LanguageTypes(
+    Bool=MBool,
+    Name=MVar,
+    Null=MNull,
+    String=MString
+)
+
+MLanguage.ops= LanguageOps(
+    Not=MNot,
+    And=MAnd,
+    Or=MOr,
+    Add=MAdd
+)
+
+mNULL=MNull()
+mTargetVar=MSpecialVar("@")
+mFirstPrerequisiteVar=MSpecialVar("<")
+mPrerequisitesVar=MSpecialVar("^")
+# Make.Sub/Mul/Div remain None

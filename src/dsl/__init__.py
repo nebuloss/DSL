@@ -1,7 +1,7 @@
 # dsl/__init__.py
 
 from .var import (
-    LanguageOps,
+    Language,
     VarExpr,
     VarUnaryOp,
     VarBinaryOp,
@@ -50,7 +50,7 @@ from . import make
 
 __all__ = [
     # var language core
-    "LanguageOps",
+    "Language",
     "VarExpr",
     "VarUnaryOp",
     "VarBinaryOp",

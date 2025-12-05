@@ -7,16 +7,13 @@ from .core import (
 )
 
 from .var import (
-    KconfigOps,
+    KLanguage,
     KVar,
     KExpr,
     KExpr,
     KNot,
     KAnd,
     KOr,
-)
-
-from .const import (
     KBool,
     KInt,
     KString,
@@ -61,7 +58,7 @@ __all__ = [
     "KComment",
 
     # var
-    "KconfigOps",
+    "KLanguage",
     "KExpr",
     "KVar",
     "KConst",

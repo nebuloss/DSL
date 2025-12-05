@@ -6,7 +6,7 @@ from typing import Optional
 from dsl import Node,BlankLineNode,SimpleNodeStack
 from dsl.container import NodeStack
 from dsl.content import WordlistNode
-from dsl.kconfig.const import KString
+from dsl.kconfig.var import KString
 from dsl.var import VarConst
 
 KElement = Node

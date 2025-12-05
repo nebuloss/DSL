@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dsl import (
-    LanguageOps,
+    Language,
     VarExpr,
     VarName,
     VarNot,
@@ -9,7 +9,9 @@ from dsl import (
     VarOr,
 )
 
-class KconfigOps(LanguageOps):
+from dsl.var import LanguageOps, LanguageTypes
+
+class KLanguage(Language):
     """
     LanguageOps table for Kconfig.
     Fields (Const, Name, Not, And, Or) are assigned after class definitions.
@@ -22,7 +24,7 @@ class KconfigOps(LanguageOps):
 
 KExpr = VarExpr
 
-class KVar(VarName[KconfigOps]):
+class KVar(VarName[KLanguage]):
     def __init__(self, name:str):
         if name[0].isdigit():
             raise ValueError("Variable name cannot start with a digit")
@@ -32,7 +34,7 @@ class KVar(VarName[KconfigOps]):
         return self.name
 
 
-class KNot(VarNot[KconfigOps]):
+class KNot(VarNot[KLanguage]):
     def __str__(self) -> str:
         c = self.child
         if isinstance(c, (KAnd, KOr)):
@@ -40,7 +42,7 @@ class KNot(VarNot[KconfigOps]):
         return f"!{c}"
 
 
-class KAnd(VarAnd[KconfigOps]):
+class KAnd(VarAnd[KLanguage]):
     def __str__(self) -> str:
         l = self.left
         r = self.right
@@ -58,14 +60,98 @@ class KAnd(VarAnd[KconfigOps]):
         return f"{ls} && {rs}"
 
 
-class KOr(VarOr[KconfigOps]):
+class KOr(VarOr[KLanguage]):
     def __str__(self) -> str:
         return f"{self.left} || {self.right}"
 
+from typing import Any, Union
 
-# ---------- Fill KconfigOps table ----------
-KconfigOps.Name = KExpr
-KconfigOps.Not = KNot
-KconfigOps.And = KAnd
-KconfigOps.Or = KOr
+from dsl.kconfig.var import KLanguage
+from dsl.var import VarBool, VarInt, VarString
+
+class KBool(VarBool[KLanguage]):
+
+    def __init__(self, val: Union[str, bool, int]):
+        if isinstance(val, bool):
+            v = val
+        elif isinstance(val, int):
+            v = bool(val)
+        elif isinstance(val, str):
+            s = val.strip().lower()
+            if s == "y":
+                v = True
+            elif s == "n":
+                v = False
+            else:
+                raise TypeError("Bool constant string must be 'y' or 'n'")
+        else:
+            raise TypeError("Bool constant must be bool, int, or 'y'/'n'")
+        super().__init__(v)
+
+    def __str__(self) -> str:
+        return "y" if self.value else "n"
+
+class KInt(VarInt[KLanguage]):
+
+    def __init__(self, val: Union[int, str, bool]):
+        if isinstance(val, bool):
+            v = int(val)
+        elif isinstance(val, int):
+            v = val
+        elif isinstance(val, str):
+            s = val.strip()
+            if not s or not s.isdigit():
+                raise TypeError("Int constant string must be a decimal integer")
+            v = int(s)
+        else:
+            raise TypeError("Int constant must be int, bool, or decimal string")
+        super().__init__(v)
+
+    def __str__(self) -> str:
+        return str(int(self._val))
+
+class KHex(KInt):
+    TYPE="hex"
+
+    def __init__(self, val: Union[int, str, bool]):
+        if isinstance(val, str):
+            s = val.strip()
+            try:
+                v = int(s, 16)
+            except ValueError:
+                raise TypeError("Hex constant string must be a valid hex literal")
+        else:
+            v=val
+        super().__init__(v)
+
+    def __str__(self) -> str:
+        return f"0x{int(self._val):X}"
+    
+
+class KString(VarString[KLanguage]):
+
+    def __init__(self, val: Any):
+        super().__init__(str(val))
+
+    @staticmethod
+    def _escape_string(s: str) -> str:
+        return s.replace("\\", "\\\\").replace('"', '\\"')
+
+    def __str__(self) -> str:
+        return f"\"{self._escape_string(str(self._val))}\""
+
+
+
+KLanguage.types= LanguageTypes(
+    Name=KVar,
+    String=KString,
+    Bool=KBool,
+    Int=KInt
+)
+
+KLanguage.ops= LanguageOps(
+    Not=KNot,
+    And=KAnd,
+    Or=KOr
+)
 # KconfigOps.Add/Sub/Mul/Div remain None (no arithmetic)

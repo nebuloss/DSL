@@ -9,7 +9,7 @@ from .core import (
 )
 
 from .var import (
-    MakeOps,
+    MLanguage,
     MExpr,
     MNull,
     mNULL,
@@ -99,7 +99,7 @@ __all__ = [
     "MLine",
 
     # var
-    "MakeOps",
+    "MLanguage",
     "MExpr",
     "MNull",
     "MVar",

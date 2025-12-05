@@ -1,8 +1,8 @@
 from typing import Any, List, Optional
-from dsl.make.var import MBool, MExpr, MString, MVar, MakeOps
+from dsl.make.var import MBool, MExpr, MString, MVar, MLanguage
 from dsl.var import VarExpr
 
-class MFunc(VarExpr[MakeOps]):
+class MFunc(VarExpr[MLanguage]):
     """
     Base class for Make function-like expressions:
       $(name arg1,arg2,...)
@@ -26,6 +26,9 @@ class MFunc(VarExpr[MakeOps]):
             self._name,
             tuple(a.key() for a in self._args),
         )
+    
+    def __iter__(self):
+        yield from iter(self._args)
 
     def simplify(self) -> MExpr:
         new_args: List[MExpr] = []

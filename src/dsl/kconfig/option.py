@@ -4,9 +4,8 @@ from typing import Optional, Union
 from dsl.container import NodeBlock
 from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KBool, KHex, KInt, KString
 from dsl.kconfig.core import KConst, KElement
-from dsl.kconfig.var import KExpr, KExpr, KVar
+from dsl.kconfig.var import KExpr, KExpr, KVar, KBool, KHex, KInt, KString
 
 class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
     """

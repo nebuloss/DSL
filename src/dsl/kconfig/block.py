@@ -3,10 +3,9 @@
 from dsl.container import DelimitedNodeBlock
 from dsl.content import TextNode, WordlistNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.kconfig.const import KString
 from dsl.kconfig.core import KConfig, KElement
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
-from dsl.kconfig.var import KExpr
+from dsl.kconfig.var import KExpr,KString
 
 class KBlock(GenericArgsMixin,DelimitedNodeBlock[KElement,KElement,TextNode]):
     """
