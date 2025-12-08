@@ -40,9 +40,7 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
         if prompt:
             prompt_node.append(KString(prompt))
-        else:
-            prompt_node=WordlistNode(const_type.TYPE, KString(prompt))
-
+        
         self._default_list=WordAlignedStack[WordlistNode]()
         self._dependency_list=WordAlignedStack[WordlistNode]()
         self._select_list=WordAlignedStack[WordlistNode]()
