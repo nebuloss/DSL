@@ -412,7 +412,6 @@ class VarName(VarConcrete):
         s = s.replace(" ", "_")
 
         # Build a regex that treats special_chars as extra allowed characters
-        self._special_chars = special_chars
         if special_chars:
             extra = re.escape(special_chars)
             klass = type(self)
@@ -436,10 +435,10 @@ class VarName(VarConcrete):
         return (self._name,)
 
     def add_prefix(self, prefix: str) -> Self:
-        return type(self)(f"{prefix}_{self.name}", special_chars=self._special_chars)
+        return type(self)(f"{prefix}_{self.name}")
 
     def add_suffix(self, suffix: str) -> Self:
-        return type(self)(f"{self.name}_{suffix}", special_chars=self._special_chars)
+        return type(self)(f"{self.name}_{suffix}")
 
 
 class VarNull(VarConcrete):

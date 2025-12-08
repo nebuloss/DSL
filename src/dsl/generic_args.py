@@ -40,39 +40,23 @@ class GenericArgsMixin:
         return subclass
 
     @classmethod
-    def get_arg(cls, index: int = 0, *, recursive: bool = False) -> Any:
+    def get_arg(cls, index: int = 0) -> Any:
         """Return the generic argument at the given index.
 
-        If recursive is False (default), only the class itself is inspected.
-        If recursive is True, the method walks the MRO until it finds a class
-        with _type_args set and returns from there.
+        Example:
+            C = MyContainer[int, str]
+            C.get_arg(0) is int
+            C.get_arg(1) is str
         """
-        if not recursive:
-            if not cls._type_args:
-                raise TypeError(f"{cls.__name__} is not parametrized with type arguments")
-            try:
-                return cls._type_args[index]
-            except IndexError:
-                raise IndexError(
-                    f"{cls.__name__} only has {len(cls._type_args)} type argument(s)"
-                ) from None
+        if not cls._type_args:
+            raise TypeError(f"{cls.__name__} is not parametrized with type arguments")
 
-        # recursive lookup: walk the MRO, find the first parametrised class
-        for c in cls.__mro__:
-            args = getattr(c, "_type_args", ())
-            if not args:
-                continue
-            try:
-                return args[index]
-            except IndexError:
-                raise IndexError(
-                    f"{c.__name__} only has {len(args)} type argument(s)"
-                ) from None
-
-        raise TypeError(
-            f"{cls.__name__} is not parametrized with type arguments "
-            "in its MRO"
-        )
+        try:
+            return cls._type_args[index]
+        except IndexError:
+            raise IndexError(
+                f"{cls.__name__} only has {len(cls._type_args)} type argument(s)"
+            ) from None
 
 
 def _type_repr(t: Any) -> str:
