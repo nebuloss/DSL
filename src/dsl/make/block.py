@@ -27,7 +27,7 @@ class MDefine(MDelimitedBlock[MDefineKeyword]):
 
 class MCondition(MDelimitedBlock[MConditionKeyword]):
     def __init__(self, begin: MConditionKeyword, *children:MElement):
-        super().__init__(begin, MENDIF_KEYWORD, *children)
+        super().__init__(begin, MENDIF_KEYWORD, *children,indent=False)
 
 class MIf(MCondition):
     def __init__(self, var: MVar, *body: MElement):
