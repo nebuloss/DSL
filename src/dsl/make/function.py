@@ -1,8 +1,8 @@
 from typing import Any, List, Optional
-from dsl.make.var import MBool, MExpr, MString, MVar, MLanguage
+from dsl.make.var import MBool, MExpr, MString, MVar, make
 from dsl.var import VarExpr
 
-class MFunc(VarExpr[MLanguage]):
+class MFunc(VarExpr[make]):
     """
     Base class for Make function-like expressions:
       $(name arg1,arg2,...)

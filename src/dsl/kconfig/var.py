@@ -11,20 +11,14 @@ from dsl import (
 
 from dsl.var import LanguageOps, LanguageTypes
 
-class KLanguage(Language):
-    """
-    LanguageOps table for Kconfig.
-    Fields (Const, Name, Not, And, Or) are assigned after class definitions.
-    Optional Add/Sub/Mul/Div are unused for Kconfig.
-    """
-    pass
+kconfig=Language("kconfig")
 
 
 # ---------- Concrete Kconfig nodes ----------
 
 KExpr = VarExpr
 
-class KVar(VarName[KLanguage]):
+class KVar(VarName[kconfig]):
     def __init__(self, name:str):
         if name[0].isdigit():
             raise ValueError("Variable name cannot start with a digit")
@@ -34,7 +28,7 @@ class KVar(VarName[KLanguage]):
         return self.name
 
 
-class KNot(VarNot[KLanguage]):
+class KNot(VarNot[kconfig]):
     def __str__(self) -> str:
         c = self.child
         if isinstance(c, (KAnd, KOr)):
@@ -42,7 +36,7 @@ class KNot(VarNot[KLanguage]):
         return f"!{c}"
 
 
-class KAnd(VarAnd[KLanguage]):
+class KAnd(VarAnd[kconfig]):
     def __str__(self) -> str:
         l = self.left
         r = self.right
@@ -60,16 +54,16 @@ class KAnd(VarAnd[KLanguage]):
         return f"{ls} && {rs}"
 
 
-class KOr(VarOr[KLanguage]):
+class KOr(VarOr[kconfig]):
     def __str__(self) -> str:
         return f"{self.left} || {self.right}"
 
 from typing import Any, Union
 
-from dsl.kconfig.var import KLanguage
+from dsl.kconfig.var import kconfig
 from dsl.var import VarBool, VarInt, VarString
 
-class KBool(VarBool[KLanguage]):
+class KBool(VarBool[kconfig]):
 
     def __init__(self, val: Union[str, bool, int]):
         if isinstance(val, bool):
@@ -91,7 +85,7 @@ class KBool(VarBool[KLanguage]):
     def __str__(self) -> str:
         return "y" if self.value else "n"
 
-class KInt(VarInt[KLanguage]):
+class KInt(VarInt[kconfig]):
 
     def __init__(self, val: Union[int, str, bool]):
         if isinstance(val, bool):
@@ -128,7 +122,7 @@ class KHex(KInt):
         return f"0x{int(self._val):X}"
     
 
-class KString(VarString[KLanguage]):
+class KString(VarString[kconfig]):
 
     def __init__(self, val: Any):
         super().__init__(str(val))
@@ -141,17 +135,3 @@ class KString(VarString[KLanguage]):
         return f"\"{self._escape_string(str(self._val))}\""
 
 
-
-KLanguage.types= LanguageTypes(
-    Name=KVar,
-    String=KString,
-    Bool=KBool,
-    Int=KInt
-)
-
-KLanguage.ops= LanguageOps(
-    Not=KNot,
-    And=KAnd,
-    Or=KOr
-)
-# KconfigOps.Add/Sub/Mul/Div remain None (no arithmetic)

@@ -9,7 +9,6 @@ from .core import (
 )
 
 from .var import (
-    MLanguage,
     MExpr,
     MNull,
     mNULL,

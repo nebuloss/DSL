@@ -7,7 +7,6 @@ from .core import (
 )
 
 from .var import (
-    KLanguage,
     KVar,
     KExpr,
     KExpr,

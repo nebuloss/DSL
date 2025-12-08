@@ -19,30 +19,29 @@ from dsl.var import (
 )
 
 
-class MLanguage(Language):
-    pass
+make=Language("make")
 
 # ---------- Core Makefile expression types ----------
 
 MExpr = VarExpr
 
-class MNull(VarNull[MLanguage]):
+class MNull(VarNull[make]):
     def __str__(self):
         return ""
     
-class MBool(VarBool[MLanguage]):
+class MBool(VarBool[make]):
     def __str__(self):
         if self.value:
             return "1"
         
         return ""
     
-class MString(VarString[MLanguage]):
+class MString(VarString[make]):
     def __str__(self):
         return self.value
        
 
-class MVarName(VarName[MLanguage]):
+class MVarName(VarName[make]):
     pass
 
 class MVar(MVarName):
@@ -67,7 +66,7 @@ class MSpecialVar(MVarName):
     def __str__(self):
         return "$"+self.name
 
-class MAdd(VarAdd[MLanguage]):
+class MAdd(VarAdd[make]):
     """
     Concatenation for Make expressions: expr + expr.
 
@@ -92,7 +91,7 @@ class MAdd(VarAdd[MLanguage]):
         return self._join(self.left, self.right)
 
 
-class MAnd(VarAnd[MLanguage]):
+class MAnd(VarAnd[make]):
     def __str__(self) -> str:
         # Flatten nested ANDs so we can emit a single $(and a,b,c)
         terms: List[str] = []
@@ -112,7 +111,7 @@ class MAnd(VarAnd[MLanguage]):
         return f"$(and {','.join(terms)})"
 
 
-class MOr(VarOr[MLanguage]):
+class MOr(VarOr[make]):
     def __str__(self) -> str:
         # Flatten nested ORs so we can emit a single $(or a,b,c)
         terms: List[str] = []
@@ -131,25 +130,10 @@ class MOr(VarOr[MLanguage]):
             return terms[0]
         return f"$(or {','.join(terms)})"
 
-class MNot(VarNot[MLanguage]):
+class MNot(VarNot[make]):
     def __str__(self) -> str:
         return f"$(if {self.child},,1)"
 
-# ---------- Fill MakeOps table ----------
-
-MLanguage.types= LanguageTypes(
-    Bool=MBool,
-    Name=MVar,
-    Null=MNull,
-    String=MString
-)
-
-MLanguage.ops= LanguageOps(
-    Not=MNot,
-    And=MAnd,
-    Or=MOr,
-    Add=MAdd
-)
 
 mNULL=MNull()
 mTargetVar=MSpecialVar("@")

@@ -3,16 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import re
-from typing import (
-    Any,
-    ClassVar,
-    Iterator,
-    List,
-    Optional,
-    Self,
-    Tuple,
-    Type,
-)
+from typing import Any, ClassVar, Iterator, List, Optional, Self, Tuple, Type
 
 from dsl.generic_args import GenericArgsMixin
 
@@ -23,11 +14,9 @@ from dsl.generic_args import GenericArgsMixin
 
 @dataclass
 class LanguageTypes:
-    # Required
-    Bool: Type["VarBool"]
-    Name: Type["VarName"]
+    Bool: Optional[Type["VarBool"]] = None
+    Name: Optional[Type["VarName"]] = None
 
-    # Optional
     Null: Optional[Type["VarNull"]] = None
     Int: Optional[Type["VarInt"]] = None
     String: Optional[Type["VarString"]] = None
@@ -35,12 +24,10 @@ class LanguageTypes:
 
 @dataclass
 class LanguageOps:
-    # Required
-    Not: Type["VarNot"]
-    And: Type["VarAnd"]
-    Or: Type["VarOr"]
+    Not: Optional[Type["VarNot"]] = None
+    And: Optional[Type["VarAnd"]] = None
+    Or: Optional[Type["VarOr"]] = None
 
-    # Optional
     Add: Optional[Type["VarAdd"]] = None
     Sub: Optional[Type["VarSub"]] = None
     Mul: Optional[Type["VarMul"]] = None
@@ -48,16 +35,27 @@ class LanguageOps:
 
 
 class Language:
-    """
-    Marker base for language descriptors.
+    def __init__(self, name: str | None = None) -> None:
+        self.name = name or "Language"
+        self.types = LanguageTypes()
+        self.ops = LanguageOps()
 
-    Concrete languages must set:
-      types: LanguageTypes
-      ops:   LanguageOps
-    as class attributes.
-    """
-    types: ClassVar[LanguageTypes]
-    ops: ClassVar[LanguageOps]
+    def validate(self) -> None:
+        missing: list[str] = []
+        if self.types.Bool is None:
+            missing.append("types.Bool")
+        if self.types.Name is None:
+            missing.append("types.Name")
+        if self.ops.Not is None:
+            missing.append("ops.Not")
+        if self.ops.And is None:
+            missing.append("ops.And")
+        if self.ops.Or is None:
+            missing.append("ops.Or")
+        if missing:
+            raise RuntimeError(
+                f"Language {self.name} missing descriptors: {', '.join(missing)}"
+            )
 
 
 # =====================================================================
@@ -65,14 +63,33 @@ class Language:
 # =====================================================================
 
 class VarExpr(GenericArgsMixin, ABC):
-    TYPE: ClassVar[str]
+    # Bound Language instance per concrete class
+    LANGUAGE: ClassVar[Language]
+
+    # ---------- language resolver ----------
+
+    @classmethod
+    def resolve_language(cls) -> Language:
+        """Return the Language instance bound to this Var class."""
+        lang = getattr(cls, "LANGUAGE", None)
+        if isinstance(lang, Language):
+            return lang
+
+        # First generic argument is mandatory for language bound classes
+        candidate = cls.get_arg(0)
+        if not isinstance(candidate, Language):
+            raise TypeError(
+                f"First generic argument of {cls.__name__} must be a Language instance, "
+                f"got {candidate!r}"
+            )
+        cls.LANGUAGE = candidate
+        return candidate
 
     def __init__(self) -> None:
-        # First generic type argument is the Language class (for example Make, Kconfig)
-        lang_cls: type[Language] = self.get_arg(0)
-        self.lang: type[Language] = lang_cls
-        self.types: LanguageTypes = lang_cls.types
-        self.ops: LanguageOps = lang_cls.ops
+        # Check and use the class level LANGUAGE
+        lang = type(self).resolve_language()
+        self.types: LanguageTypes = lang.types
+        self.ops: LanguageOps = lang.ops
 
     # ---------- unified operator dispatch ----------
 
@@ -83,7 +100,6 @@ class VarExpr(GenericArgsMixin, ABC):
         rhs: Any,
         op_cls: Optional[Type["VarBinaryOp"]],
     ) -> "VarExpr":
-        # Let Python handle non VarExpr operands (reflected ops etc.)
         if not isinstance(lhs, VarExpr) or not isinstance(rhs, VarExpr):
             return NotImplemented
 
@@ -93,8 +109,8 @@ class VarExpr(GenericArgsMixin, ABC):
         # Central Null handling for all binary operators
         null_cls = types.Null
         if null_cls is not None:
-            lhs_is_null = isinstance(lhs, null_cls)
-            rhs_is_null = isinstance(rhs, null_cls)
+            lhs_is_null = isinstance(lhs, VarNull)
+            rhs_is_null = isinstance(rhs, VarNull)
 
             if lhs_is_null and rhs_is_null:
                 return null_cls()
@@ -110,7 +126,7 @@ class VarExpr(GenericArgsMixin, ABC):
 
     # ---------- Python operator methods ----------
 
-    # Boolean logic via bitwise ops
+    # Boolean logic
     def __or__(self, other: "VarExpr") -> "VarExpr":
         return type(self)._dispatch_binop(self, other, self.ops.Or)
 
@@ -130,13 +146,17 @@ class VarExpr(GenericArgsMixin, ABC):
         return type(self)._dispatch_binop(self, other, self.ops.And)
 
     def __invert__(self) -> "VarExpr":
-        # Central Null handling for unary not
         null_cls = self.types.Null
-        if null_cls is not None and isinstance(self, null_cls):
+        if null_cls is not None and isinstance(self, VarNull):
             return self
-        return self.ops.Not(self.simplify()).simplify()
 
-    # Arithmetic and concat (language optional)
+        not_cls = self.ops.Not
+        if not_cls is None:
+            raise TypeError("This language does not define logical NOT")
+
+        return not_cls(self.simplify()).simplify()
+
+    # Arithmetic / concat
     def __add__(self, other: "VarExpr") -> "VarExpr":
         return type(self)._dispatch_binop(self, other, self.ops.Add)
 
@@ -176,61 +196,32 @@ class VarExpr(GenericArgsMixin, ABC):
     # ---------- language consistency ----------
 
     def _check_same_ops(self, other: "VarExpr") -> None:
-        if self.lang is not other.lang:
-            raise TypeError("Cannot combine expressions with different Language")
+        if type(self).resolve_language() is not type(other).resolve_language():
+            raise TypeError("Cannot combine expressions with different Language instances")
 
     # ---------- structural API ----------
 
     @abstractmethod
     def __iter__(self) -> Iterator["VarExpr"]:
-        """
-        Iterate over structural children of this node.
-        Implemented in concrete base node types.
-        """
         raise NotImplementedError
 
     @abstractmethod
     def args(self) -> Tuple[Any, ...]:
-        """
-        Structural payload for this node, excluding TYPE.
-        Used by key() as (TYPE, *args()).
-        """
         raise NotImplementedError
 
     def key(self) -> Tuple[Any, ...]:
-        """
-        Canonical structural key used for:
-          - sorting
-          - detecting duplicates
-          - absorption and contradiction checks
-        """
-        return (self.TYPE, *self.args())
+        return (self.TYPE, *self.args())  # type: ignore[attr-defined]
 
     @abstractmethod
     def simplify(self) -> "VarExpr":
-        """
-        Return a simplified version of this node.
-        May return self.
-        """
         raise NotImplementedError
 
     def __len__(self) -> int:
-        """
-        Size of the expression tree in nodes.
-        Computed purely from iteration.
-        """
         return 1 + sum(len(child) for child in self)
-
-    # ---------- printing ----------
 
     @abstractmethod
     def __str__(self) -> str:
-        """
-        Concrete languages define syntax here.
-        """
         raise NotImplementedError
-
-    # ---------- equality ----------
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, VarExpr) and self.key() == other.key()
@@ -241,44 +232,39 @@ class VarExpr(GenericArgsMixin, ABC):
 # =====================================================================
 
 class VarUnaryOp(VarExpr):
-
     def __init__(self, child: VarExpr):
         self.child = child
         super().__init__()
-        if self.lang is not child.lang:
+        if type(self).resolve_language() is not type(child).resolve_language():
             raise TypeError("Mismatched Language in unary operator")
 
     def __iter__(self) -> Iterator[VarExpr]:
         yield self.child
 
     def args(self) -> Tuple[Any, ...]:
-        # Structural payload is the child key
         return (self.child.key(),)
 
 
 class VarBinaryOp(VarExpr):
-
     def __init__(self, left: VarExpr, right: VarExpr):
         self.left = left
         self.right = right
         super().__init__()
-        if self.lang is not left.lang or self.lang is not right.lang:
+        if type(self).resolve_language() is not type(left).resolve_language() \
+           or type(self).resolve_language() is not type(right).resolve_language():
             raise TypeError("Mismatched Language in binary operator")
 
     def __iter__(self) -> Iterator[VarExpr]:
-        # Right first, then left as you requested earlier
         yield self.right
         yield self.left
 
     def args(self) -> Tuple[Any, ...]:
-        # Default ordered pair
         return (self.left.key(), self.right.key())
 
     @staticmethod
     def is_negation_pair(a: "VarExpr", b: "VarExpr") -> bool:
         ak = a.key()
         bk = b.key()
-        # VarNot will have TYPE "not" and args (child_key,)
         return ak == ("not", bk) or bk == ("not", ak)
 
     @classmethod
@@ -293,9 +279,9 @@ class VarBinaryOp(VarExpr):
         if len(terms) == 1:
             return terms[0]
 
-        lang = terms[0].lang
+        lang = type(terms[0]).resolve_language()
         for t in terms:
-            if t.lang is not lang:
+            if type(t).resolve_language() is not lang:
                 raise TypeError("Mixed Language in rebuild")
 
         terms_sorted = sorted(terms, key=lambda e: e.key())
@@ -305,20 +291,22 @@ class VarBinaryOp(VarExpr):
         return acc
 
 
+# =====================================================================
+# Concrete base
+# =====================================================================
+
 class VarConcrete(VarExpr):
-    """
-    Base class for leaf nodes or nodes with no structural children.
-    """
+    # Default declaration point for TYPE
+    TYPE: ClassVar[str]
 
     def __iter__(self) -> Iterator[VarExpr]:
-        return
-        yield
+        if False:
+            yield None  # type: ignore[misc]
 
     def simplify(self) -> Self:
         return self
 
     def args(self) -> Tuple[Any, ...]:
-        # Default: no payload beyond TYPE
         return ()
 
 
@@ -327,11 +315,6 @@ class VarConcrete(VarExpr):
 # =====================================================================
 
 class VarConst(VarConcrete):
-    """
-    Constant node. Concrete languages implement __str__.
-    No arithmetic here. Use Language.ops.Add/Sub/Mul/Div to enable math or concat.
-    """
-
     def __init__(self, val: Any):
         self._val = val
         super().__init__()
@@ -341,23 +324,30 @@ class VarConst(VarConcrete):
         return self._val
 
     def args(self) -> Tuple[Any, ...]:
-        # Structural payload is the raw Python value
         return (self._val,)
 
 
 class VarBool(VarConst):
     TYPE = "bool"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Skip base
+        if cls is VarBool:
+            return
+        lang = cls.resolve_language()
+        lang.types.Bool = cls  # type: ignore[assignment]
+
     def __init__(self, val):
         super().__init__(bool(val))
 
     @classmethod
     def isTrue(cls, x: "VarExpr") -> bool:
-        return isinstance(x, cls) and x._val is True
+        return isinstance(x, cls) and x.value is True
 
     @classmethod
     def isFalse(cls, x: "VarExpr") -> bool:
-        return isinstance(x, cls) and x._val is False
+        return isinstance(x, cls) and x.value is False
 
     @classmethod
     def true(cls) -> Self:
@@ -371,6 +361,13 @@ class VarBool(VarConst):
 class VarString(VarConst):
     TYPE = "string"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarString:
+            return
+        lang = cls.resolve_language()
+        lang.types.String = cls  # type: ignore[assignment]
+
     def __init__(self, val):
         super().__init__(str(val))
 
@@ -378,22 +375,30 @@ class VarString(VarConst):
 class VarInt(VarConst):
     TYPE = "int"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarInt:
+            return
+        lang = cls.resolve_language()
+        lang.types.Int = cls  # type: ignore[assignment]
+
     def __init__(self, val):
         super().__init__(int(val))
 
 
 class VarName(VarConcrete):
     TYPE = "name"
-    """
-    Variable reference.
-
-    By default, variable names may contain ASCII letters, digits, underscore,
-    and dot. Extra allowed characters can be passed with special_chars.
-    """
 
     # Base allowed characters: letters, digits, underscore, dot
     _BASE_ALLOWED = "A-Za-z0-9_."
     _ILLEGAL_CHAR_RE = re.compile(rf"[^{_BASE_ALLOWED}]")
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarName:
+            return
+        lang = cls.resolve_language()
+        lang.types.Name = cls  # type: ignore[assignment]
 
     def __init__(self, name: str, special_chars: str = ""):
         if not isinstance(name, str):
@@ -415,7 +420,6 @@ class VarName(VarConcrete):
         else:
             illegal_re = type(self)._ILLEGAL_CHAR_RE
 
-        # Check for any remaining illegal characters
         m = illegal_re.search(s)
         if m:
             illegal = m.group(0)
@@ -429,28 +433,26 @@ class VarName(VarConcrete):
         return self._name
 
     def args(self) -> Tuple[Any, ...]:
-        # key(): ("name", "x")
         return (self._name,)
 
     def add_prefix(self, prefix: str) -> Self:
-        # Preserve the same special_chars for derived names
         return type(self)(f"{prefix}_{self.name}", special_chars=self._special_chars)
 
     def add_suffix(self, suffix: str) -> Self:
-        # Preserve the same special_chars for derived names
         return type(self)(f"{self.name}_{suffix}", special_chars=self._special_chars)
 
 
 class VarNull(VarConcrete):
     TYPE = "null"
-    """
-    Singleton sentinel node for "no expression".
-
-    Concrete languages must subclass this.
-    Each concrete VarNull subclass is a singleton.
-    """
 
     _instance: Optional["VarNull"] = None
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarNull:
+            return
+        lang = cls.resolve_language()
+        lang.types.Null = cls  # type: ignore[assignment]
 
     def __new__(cls) -> "VarNull":
         if cls is VarNull:
@@ -459,11 +461,7 @@ class VarNull(VarConcrete):
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def args(self) -> Tuple[Any, ...]:
-        # No payload
         return ()
 
     @classmethod
@@ -478,47 +476,67 @@ class VarNull(VarConcrete):
 class VarNot(VarUnaryOp):
     TYPE = "not"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarNot:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Not = cls  # type: ignore[assignment]
+
     def simplify(self) -> "VarExpr":
         c = self.child
+        bool_type = self.types.Bool
 
-        if self.types.Bool.isTrue(c):
-            return self.types.Bool.false()
-        if self.types.Bool.isFalse(c):
-            return self.types.Bool.true()
+        if bool_type is not None:
+            if bool_type.isTrue(c):
+                return bool_type.false()
+            if bool_type.isFalse(c):
+                return bool_type.true()
 
-        if isinstance(c, self.ops.Not):
+        if isinstance(c, VarNot):
             # ~~X => X
             return c.child
 
-        if isinstance(c, self.ops.And):
+        if isinstance(c, VarAnd):
             # De Morgan
-            return (self.ops.Not(c.left) | self.ops.Not(c.right)).simplify()
+            return (self.ops.Not(c.left) | self.ops.Not(c.right)).simplify()  # type: ignore[call-arg]
 
-        if isinstance(c, self.ops.Or):
+        if isinstance(c, VarOr):
             # De Morgan
-            return (self.ops.Not(c.left) & self.ops.Not(c.right)).simplify()
+            return (self.ops.Not(c.left) & self.ops.Not(c.right)).simplify()  # type: ignore[call-arg]
 
         # Nothing more to do structurally
-        return self.ops.Not(c)
+        return self.ops.Not(c)  # type: ignore[call-arg]
 
 
 class VarAnd(VarBinaryOp):
     TYPE = "and"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarAnd:
+            return
+        lang = cls.resolve_language()
+        lang.ops.And = cls  # type: ignore[assignment]
+
     def simplify(self) -> "VarExpr":
         left = self.left
         right = self.right
+        bool_type = self.types.Bool
 
-        if self.types.Bool.isFalse(left) or self.types.Bool.isFalse(right):
-            return self.types.Bool.false()
-        if self.types.Bool.isTrue(left):
-            return right
-        if self.types.Bool.isTrue(right):
-            return left
+        if bool_type is not None:
+            if bool_type.isFalse(left) or bool_type.isFalse(right):
+                return bool_type.false()
+            if bool_type.isTrue(left):
+                return right
+            if bool_type.isTrue(right):
+                return left
+
         if left.key() == right.key():
             return left
         if VarBinaryOp.is_negation_pair(left, right):
-            return self.types.Bool.false()
+            if bool_type is not None:
+                return bool_type.false()
 
         terms = self._flatten_terms(left, right)
 
@@ -529,10 +547,14 @@ class VarAnd(VarBinaryOp):
         terms = self._absorption_with_or(terms)
         terms = self._negated_absorption_with_or(terms)
 
+        if bool_type is None:
+            and_cls = self.ops.And or type(self)
+            return VarBinaryOp.rebuild_sorted(terms, self, and_cls)  # type: ignore[arg-type]
+
         return VarBinaryOp.rebuild_sorted(
             terms,
-            self.types.Bool.true(),
-            self.ops.And,
+            bool_type.true(),
+            self.ops.And or type(self),  # type: ignore[arg-type]
         )
 
     def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
@@ -540,7 +562,8 @@ class VarAnd(VarBinaryOp):
         seen = set()
 
         def add(e: VarExpr) -> None:
-            if self.types.Bool.isTrue(e):
+            bt = self.types.Bool
+            if bt is not None and bt.isTrue(e):
                 return
             k = e.key()
             if k not in seen:
@@ -548,7 +571,7 @@ class VarAnd(VarBinaryOp):
                 items.append(e)
 
         def walk(e: VarExpr) -> None:
-            if isinstance(e, self.ops.And):
+            if isinstance(e, VarAnd):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -559,12 +582,16 @@ class VarAnd(VarBinaryOp):
         return items
 
     def _detect_contradiction(self, terms: List[VarExpr]) -> Optional[VarExpr]:
+        bool_type = self.types.Bool
+        if bool_type is None:
+            return None
+
         keys = {t.key() for t in terms}
         for t in terms:
-            if isinstance(t, self.ops.Not) and t.child.key() in keys:
-                return self.types.Bool.false()
-            if not isinstance(t, self.ops.Not) and ("not", t.key()) in keys:
-                return self.types.Bool.false()
+            if isinstance(t, VarNot) and t.child.key() in keys:
+                return bool_type.false()
+            if not isinstance(t, VarNot) and ("not", t.key()) in keys:
+                return bool_type.false()
         return None
 
     def _absorption_with_or(self, terms: List[VarExpr]) -> List[VarExpr]:
@@ -573,7 +600,7 @@ class VarAnd(VarBinaryOp):
         base = {t.key() for t in terms}
         kept: List[VarExpr] = []
         for t in terms:
-            if isinstance(t, self.ops.Or) and (t.left.key() in base or t.right.key() in base):
+            if isinstance(t, VarOr) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
@@ -582,21 +609,21 @@ class VarAnd(VarBinaryOp):
         if len(terms) <= 1:
             return terms
 
-        base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
-        base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
+        base_pos = {t.key() for t in terms if not isinstance(t, VarNot)}
+        base_neg = {t.child.key() for t in terms if isinstance(t, VarNot)}
 
         new_terms: List[VarExpr] = []
         changed = False
 
         for t in terms:
-            if isinstance(t, self.ops.Or):
+            if isinstance(t, VarOr):
                 l, r = t.left, t.right
 
-                if isinstance(l, self.ops.Not) and l.child.key() in base_pos:
+                if isinstance(l, VarNot) and l.child.key() in base_pos:
                     new_terms.append(r)
                     changed = True
                     continue
-                if isinstance(r, self.ops.Not) and r.child.key() in base_pos:
+                if isinstance(r, VarNot) and r.child.key() in base_pos:
                     new_terms.append(l)
                     changed = True
                     continue
@@ -618,20 +645,31 @@ class VarAnd(VarBinaryOp):
 class VarOr(VarBinaryOp):
     TYPE = "or"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarOr:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Or = cls  # type: ignore[assignment]
+
     def simplify(self) -> "VarExpr":
         left = self.left
         right = self.right
+        bool_type = self.types.Bool
 
-        if self.types.Bool.isTrue(left) or self.types.Bool.isTrue(right):
-            return self.types.Bool.true()
-        if self.types.Bool.isFalse(left):
-            return right
-        if self.types.Bool.isFalse(right):
-            return left
+        if bool_type is not None:
+            if bool_type.isTrue(left) or bool_type.isTrue(right):
+                return bool_type.true()
+            if bool_type.isFalse(left):
+                return right
+            if bool_type.isFalse(right):
+                return left
+
         if left.key() == right.key():
             return left
         if VarBinaryOp.is_negation_pair(left, right):
-            return self.types.Bool.true()
+            if bool_type is not None:
+                return bool_type.true()
 
         terms = self._flatten_terms(left, right)
 
@@ -642,10 +680,14 @@ class VarOr(VarBinaryOp):
         terms = self._absorption_with_and(terms)
         terms = self._negated_absorption_with_and(terms)
 
+        if bool_type is None:
+            or_cls = self.ops.Or or type(self)
+            return VarBinaryOp.rebuild_sorted(terms, self, or_cls)  # type: ignore[arg-type]
+
         return VarBinaryOp.rebuild_sorted(
             terms,
-            self.types.Bool.false(),
-            self.ops.Or,
+            bool_type.false(),
+            self.ops.Or or type(self),  # type: ignore[arg-type]
         )
 
     def _flatten_terms(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
@@ -653,7 +695,8 @@ class VarOr(VarBinaryOp):
         seen = set()
 
         def add(e: VarExpr) -> None:
-            if self.types.Bool.isFalse(e):
+            bt = self.types.Bool
+            if bt is not None and bt.isFalse(e):
                 return
             k = e.key()
             if k not in seen:
@@ -661,7 +704,7 @@ class VarOr(VarBinaryOp):
                 items.append(e)
 
         def walk(e: VarExpr) -> None:
-            if isinstance(e, self.ops.Or):
+            if isinstance(e, VarOr):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -672,12 +715,16 @@ class VarOr(VarBinaryOp):
         return items
 
     def _detect_tautology(self, terms: List[VarExpr]) -> Optional[VarExpr]:
+        bool_type = self.types.Bool
+        if bool_type is None:
+            return None
+
         keys = {t.key() for t in terms}
         for t in terms:
-            if isinstance(t, self.ops.Not) and t.child.key() in keys:
-                return self.types.Bool.true()
-            if not isinstance(t, self.ops.Not) and ("not", t.key()) in keys:
-                return self.types.Bool.true()
+            if isinstance(t, VarNot) and t.child.key() in keys:
+                return bool_type.true()
+            if not isinstance(t, VarNot) and ("not", t.key()) in keys:
+                return bool_type.true()
         return None
 
     def _absorption_with_and(self, terms: List[VarExpr]) -> List[VarExpr]:
@@ -686,7 +733,7 @@ class VarOr(VarBinaryOp):
         base = {t.key() for t in terms}
         kept: List[VarExpr] = []
         for t in terms:
-            if isinstance(t, self.ops.And) and (t.left.key() in base or t.right.key() in base):
+            if isinstance(t, VarAnd) and (t.left.key() in base or t.right.key() in base):
                 continue
             kept.append(t)
         return kept
@@ -695,21 +742,21 @@ class VarOr(VarBinaryOp):
         if len(terms) <= 1:
             return terms
 
-        base_pos = {t.key() for t in terms if not isinstance(t, self.ops.Not)}
-        base_neg = {t.child.key() for t in terms if isinstance(t, self.ops.Not)}
+        base_pos = {t.key() for t in terms if not isinstance(t, VarNot)}
+        base_neg = {t.child.key() for t in terms if isinstance(t, VarNot)}
 
         new_terms: List[VarExpr] = []
         changed = False
 
         for t in terms:
-            if isinstance(t, self.ops.And):
+            if isinstance(t, VarAnd):
                 l, r = t.left, t.right
 
-                if isinstance(l, self.ops.Not) and l.child.key() in base_pos:
+                if isinstance(l, VarNot) and l.child.key() in base_pos:
                     new_terms.append(r)
                     changed = True
                     continue
-                if isinstance(r, self.ops.Not) and r.child.key() in base_pos:
+                if isinstance(r, VarNot) and r.child.key() in base_pos:
                     new_terms.append(l)
                     changed = True
                     continue
@@ -735,6 +782,13 @@ class VarOr(VarBinaryOp):
 class VarAdd(VarBinaryOp):
     TYPE = "add"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarAdd:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Add = cls  # type: ignore[assignment]
+
     def simplify(self) -> VarExpr:
         left = self.left.simplify()
         right = self.right.simplify()
@@ -744,7 +798,6 @@ class VarAdd(VarBinaryOp):
         new_terms = self._rebuild_terms(const_type, const_sum, linear_terms, others)
 
         if not new_terms:
-            # No neutral element type known, keep original
             return self
 
         if len(new_terms) == 1:
@@ -758,11 +811,10 @@ class VarAdd(VarBinaryOp):
         return acc
 
     def _flatten_sum(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
-        add_cls = type(self)
         items: List[VarExpr] = []
 
         def walk(e: VarExpr) -> None:
-            if isinstance(e, add_cls):
+            if isinstance(e, VarAdd):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -789,7 +841,7 @@ class VarAdd(VarBinaryOp):
         others: List[VarExpr] = []
 
         for t in terms:
-            # Pure integer constant
+            # pure integer constant
             if isinstance(t, VarConst) and isinstance(t.value, int):
                 t_type = type(t)
                 if const_type is None:
@@ -801,8 +853,8 @@ class VarAdd(VarBinaryOp):
                     others.append(t)
                 continue
 
-            # Linear term c * base
-            if self.ops.Mul is not None and isinstance(t, self.ops.Mul):
+            # linear term c * base
+            if isinstance(t, VarMul):
                 coeff_const, base_expr = self._extract_coeff_base(t)
                 if coeff_const is not None and base_expr is not None:
                     base_key = base_expr.key()
@@ -817,13 +869,13 @@ class VarAdd(VarBinaryOp):
                         elif prev_type is None:
                             coeff_type = type(coeff_const)
                         else:
-                            # Mixed coeff types for same base, bail out
+                            # mixed coeff types, give up on this term
                             others.append(t)
                             continue
                         linear_terms[base_key] = (prev_coeff + coeff, coeff_type, prev_base)
                     continue
 
-            # Bare base, coefficient 1
+            # bare base, coefficient 1
             base_key = t.key()
             prev = linear_terms.get(base_key)
             if prev is None:
@@ -838,7 +890,7 @@ class VarAdd(VarBinaryOp):
         self,
         term: VarExpr,
     ) -> Tuple[Optional[VarConst], Optional[VarExpr]]:
-        if self.ops.Mul is None or not isinstance(term, self.ops.Mul):
+        if not isinstance(term, VarMul):
             return None, None
 
         l = term.left
@@ -860,37 +912,37 @@ class VarAdd(VarBinaryOp):
     ) -> List[VarExpr]:
         result: List[VarExpr] = []
 
-        # Constant part
+        add_cls = self.ops.Add or type(self)
+        mul_cls = self.ops.Mul  # may be None
+
+        # constant part
         if const_type is not None and const_sum != 0:
             result.append(const_type(const_sum))  # type: ignore[call-arg]
 
-        # Linear terms
+        # linear terms
         for _, (coeff, coeff_type, base_expr) in sorted(
             linear_terms.items(), key=lambda item: item[0]
         ):
             if coeff == 0:
                 continue
 
-            if coeff_type is not None and self.ops.Mul is not None:
+            if coeff_type is not None and mul_cls is not None:
                 coeff_const = coeff_type(coeff)  # type: ignore[call-arg]
-                result.append(self.ops.Mul(coeff_const, base_expr).simplify())
+                result.append(mul_cls(coeff_const, base_expr).simplify())
+            elif coeff_type is None and self.types.Int is not None and mul_cls is not None:
+                coeff_const = self.types.Int(coeff)  # type: ignore[call-arg]
+                result.append(mul_cls(coeff_const, base_expr).simplify())
             else:
-                # No stored type, fallback to language Int if available and Mul is available
-                if self.types.Int is not None and self.ops.Mul is not None:
-                    coeff_const = self.types.Int(coeff)  # type: ignore[call-arg]
-                    result.append(self.ops.Mul(coeff_const, base_expr).simplify())
+                # cannot create a Mul node safely, fallback to repeated Add
+                if coeff == 1:
+                    result.append(base_expr)
                 else:
-                    # Last resort: repeat term using Add only
-                    if coeff == 1:
-                        result.append(base_expr)
-                    else:
-                        add_cls = self.ops.Add or type(self)
-                        acc: VarExpr = base_expr
-                        for _ in range(coeff - 1):
-                            acc = add_cls(acc, base_expr)
-                        result.append(acc.simplify())
+                    acc: VarExpr = base_expr
+                    for _ in range(coeff - 1):
+                        acc = add_cls(acc, base_expr)
+                    result.append(acc.simplify())
 
-        # Others
+        # others stay as they are
         result.extend(others)
         return result
 
@@ -898,11 +950,18 @@ class VarAdd(VarBinaryOp):
 class VarSub(VarBinaryOp):
     TYPE = "sub"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarSub:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Sub = cls  # type: ignore[assignment]
+
     def simplify(self) -> VarExpr:
         left = self.left.simplify()
         right = self.right.simplify()
 
-        # Constant folding for integer constants of same type
+        # constant folding for integer constants
         if isinstance(left, VarConst) and isinstance(right, VarConst):
             if (
                 isinstance(left.value, int)
@@ -923,37 +982,46 @@ class VarSub(VarBinaryOp):
                 return self.types.Int(0)  # type: ignore[call-arg]
             return self
 
-        # Rewrite x - y as x + (-1) * y so Add can merge
+        # rewrite x - y as x + (-1) * y
         neg = self._negate_expr(right)
-        if neg is not None and self.ops.Add is not None:
-            return self.ops.Add(left, neg).simplify()
+        if neg is not None:
+            add_cls = self.ops.Add or VarAdd
+            return add_cls(left, neg).simplify()
 
         return self
 
     def _negate_expr(self, expr: VarExpr) -> Optional[VarExpr]:
-        # Negate integer constant
+        # negate integer constant
         if isinstance(expr, VarConst) and isinstance(expr.value, int):
             return type(expr)(-expr.value)  # type: ignore[call-arg]
 
-        # Negate c * base
-        if self.ops.Mul is not None and isinstance(expr, self.ops.Mul):
+        mul_cls = self.ops.Mul
+
+        # negate c * base
+        if isinstance(expr, VarMul) and mul_cls is not None:
             l = expr.left
             r = expr.right
             if isinstance(l, VarConst) and isinstance(l.value, int):
-                return self.ops.Mul(type(l)(-l.value), r).simplify()  # type: ignore[call-arg]
+                return mul_cls(type(l)(-l.value), r).simplify()  # type: ignore[call-arg]
             if isinstance(r, VarConst) and isinstance(r.value, int):
-                return self.ops.Mul(l, type(r)(-r.value)).simplify()  # type: ignore[call-arg]
+                return mul_cls(l, type(r)(-r.value)).simplify()  # type: ignore[call-arg]
 
-        # Fallback: Int(-1) * expr if available
-        if self.types.Int is not None and self.ops.Mul is not None:
-            return self.ops.Mul(self.types.Int(-1), expr).simplify()  # type: ignore[call-arg]
+        # fallback Int(-1) * expr
+        if self.types.Int is not None and mul_cls is not None:
+            return mul_cls(self.types.Int(-1), expr).simplify()  # type: ignore[call-arg]
 
-        # No safe way to negate
         return None
 
 
 class VarMul(VarBinaryOp):
     TYPE = "mul"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarMul:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Mul = cls  # type: ignore[assignment]
 
     def simplify(self) -> VarExpr:
         left = self.left.simplify()
@@ -962,7 +1030,7 @@ class VarMul(VarBinaryOp):
         factors = self._flatten_product(left, right)
         const_type, const_prod, non_const = self._collect_constant_factor(factors)
 
-        # 0 times anything is 0
+        # 0 * anything => 0
         if const_type is not None and const_prod == 0:
             return const_type(0)  # type: ignore[call-arg]
 
@@ -987,12 +1055,10 @@ class VarMul(VarBinaryOp):
         return acc
 
     def _flatten_product(self, a: VarExpr, b: VarExpr) -> List[VarExpr]:
-        # Flatten only this concrete Mul class
-        mul_cls = type(self)
         items: List[VarExpr] = []
 
         def walk(e: VarExpr) -> None:
-            if isinstance(e, mul_cls):
+            if isinstance(e, VarMul):
                 walk(e.left)
                 walk(e.right)
             else:
@@ -1029,11 +1095,18 @@ class VarMul(VarBinaryOp):
 class VarDiv(VarBinaryOp):
     TYPE = "div"
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls is VarDiv:
+            return
+        lang = cls.resolve_language()
+        lang.ops.Div = cls  # type: ignore[assignment]
+
     def simplify(self) -> VarExpr:
         left = self.left.simplify()
         right = self.right.simplify()
 
-        # Constant folding for integer constants of same type
+        # constant folding
         if isinstance(left, VarConst) and isinstance(right, VarConst):
             if (
                 isinstance(left.value, int)
@@ -1047,11 +1120,11 @@ class VarDiv(VarBinaryOp):
         if isinstance(right, VarConst) and isinstance(right.value, int) and right.value == 1:
             return left
 
-        # 0 / x => 0 (for integer zero)
+        # 0 / x => 0
         if isinstance(left, VarConst) and isinstance(left.value, int) and left.value == 0:
             return type(left)(0)  # type: ignore[call-arg]
 
-        # Try to reduce multiplicative constant: (c * base) / d => (c/d) * base
+        # (c * base) / d => (c/d) * base when divisible
         reduced = self._reduce_constant_factor(left, right)
         if reduced is not None:
             return reduced
@@ -1059,28 +1132,28 @@ class VarDiv(VarBinaryOp):
         return self
 
     def _reduce_constant_factor(self, left: VarExpr, right: VarExpr) -> Optional[VarExpr]:
-        if not (isinstance(right, VarConst) and isinstance(right.value, int)):
+        if not isinstance(right, VarConst) or not isinstance(right.value, int):
             return None
         if right.value == 0:
             return None
 
-        if self.ops.Mul is None:
+        if not isinstance(left, VarMul):
             return None
 
-        # Pattern: (c * base) / d
-        if isinstance(left, self.ops.Mul):
-            l = left.left
-            r = left.right
-            for const, other in ((l, r), (r, l)):
-                if (
-                    isinstance(const, VarConst)
-                    and isinstance(const.value, int)
-                    and type(const) is type(right)
-                ):
-                    c = const.value
-                    d = right.value
-                    if c % d == 0:
-                        new_c = type(const)(c // d)  # type: ignore[call-arg]
-                        return self.ops.Mul(new_c, other).simplify()
+        mul_cls = type(left)
+
+        l = left.left
+        r = left.right
+
+        for const, other in ((l, r), (r, l)):
+            if (
+                isinstance(const, VarConst)
+                and isinstance(const.value, int)
+                and type(const) is type(right)
+            ):
+                q, rem = divmod(const.value, right.value)
+                if rem == 0:
+                    new_c = type(const)(q)  # type: ignore[call-arg]
+                    return mul_cls(new_c, other).simplify()
 
         return None
