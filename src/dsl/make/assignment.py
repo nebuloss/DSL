@@ -37,7 +37,7 @@ class MAssignment(GenericArgsMixin,WordsNode):
         return self._value
 
     def __iter__(self) -> Iterator[str]:
-        yield str(self.var)
+        yield self.var.name
         yield self.op
         yield str(self.value)
 
