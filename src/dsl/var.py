@@ -19,6 +19,7 @@ class LanguageTypes:
 
     Null: Optional[Type["VarNull"]] = None
     Int: Optional[Type["VarInt"]] = None
+    Hex: Optional[Type["VarHex"]] = None
     String: Optional[Type["VarString"]] = None
 
 
@@ -255,8 +256,8 @@ class VarBinaryOp(VarExpr):
             raise TypeError("Mismatched Language in binary operator")
 
     def __iter__(self) -> Iterator[VarExpr]:
-        yield self.right
         yield self.left
+        yield self.right
 
     def args(self) -> Tuple[Any, ...]:
         return (self.left.key(), self.right.key())
@@ -332,8 +333,7 @@ class VarBool(VarConst):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # Skip base
-        if cls is VarBool:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.types.Bool = cls  # type: ignore[assignment]
@@ -363,7 +363,7 @@ class VarString(VarConst):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarString:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.types.String = cls  # type: ignore[assignment]
@@ -377,13 +377,30 @@ class VarInt(VarConst):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarInt:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.types.Int = cls  # type: ignore[assignment]
 
     def __init__(self, val):
         super().__init__(int(val))
+
+
+class VarHex(VarConst):
+    TYPE = "hex"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "_type_args" in cls.__dict__:
+            return
+        lang = cls.resolve_language()
+        lang.types.Hex = cls  # type: ignore[assignment]
+
+    def __init__(self, val):
+        if isinstance(val, str):
+            super().__init__(int(val.strip(), 16))
+        else:
+            super().__init__(int(val))
 
 
 class VarName(VarConcrete):
@@ -395,7 +412,7 @@ class VarName(VarConcrete):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarName:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.types.Name = cls  # type: ignore[assignment]
@@ -448,7 +465,7 @@ class VarNull(VarConcrete):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarNull:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.types.Null = cls  # type: ignore[assignment]
@@ -477,7 +494,7 @@ class VarNot(VarUnaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarNot:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Not = cls  # type: ignore[assignment]
@@ -513,7 +530,7 @@ class VarAnd(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarAnd:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.And = cls  # type: ignore[assignment]
@@ -646,7 +663,7 @@ class VarOr(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarOr:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Or = cls  # type: ignore[assignment]
@@ -783,7 +800,7 @@ class VarAdd(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarAdd:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Add = cls  # type: ignore[assignment]
@@ -951,7 +968,7 @@ class VarSub(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarSub:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Sub = cls  # type: ignore[assignment]
@@ -1017,7 +1034,7 @@ class VarMul(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarMul:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Mul = cls  # type: ignore[assignment]
@@ -1096,7 +1113,7 @@ class VarDiv(VarBinaryOp):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls is VarDiv:
+        if "_type_args" in cls.__dict__:
             return
         lang = cls.resolve_language()
         lang.ops.Div = cls  # type: ignore[assignment]

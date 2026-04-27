@@ -15,12 +15,10 @@ class ContainerNode[TChild:Node](IterableNode[TChild]):
         return next(iter(self), None) is None
     
     def render(self, level: int = 0) -> Iterator[Line]:
-#        print(f"{repr(self)} contains {list(iter(self))}")
         for child in self:
             yield from child.render(level)
 
     def find(self, *tags)-> Iterator[Node]:
-#        print(f"{repr(self)} contains {list(iter(self))}")
         yield from super().find(*tags)
         for child in self:
             yield from child.find(*tags)

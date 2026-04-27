@@ -9,6 +9,7 @@ from .var import (
     VarBool,
     VarString,
     VarInt,
+    VarHex,
     VarName,
     VarNull,
     VarNot,
@@ -45,8 +46,8 @@ from .container import (
     DelimitedNodeBlock,
 )
 
-# from . import kconfig
 from . import make
+from . import kconfig
 
 __all__ = [
     # var language core
@@ -58,6 +59,7 @@ __all__ = [
     "VarBool",
     "VarString",
     "VarInt",
+    "VarHex",
     "VarName",
     "VarNull",
     "VarNot",
@@ -87,7 +89,8 @@ __all__ = [
     "IndentedNode",
     "NodeBlock",
     "DelimitedNodeBlock",
+
     # sublanguages
-    # "kconfig",
     "make",
+    "kconfig",
 ]

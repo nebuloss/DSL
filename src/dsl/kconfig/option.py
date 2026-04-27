@@ -5,7 +5,7 @@ from dsl.container import NodeBlock
 from dsl.content import TextNode, WordAlignedStack, WordlistNode
 from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.core import KConst, KElement
-from dsl.kconfig.var import KExpr, KExpr, KVar, KBool, KHex, KInt, KString
+from dsl.kconfig.var import KBool, KExpr, KHex, KInt, KString, KVar
 
 class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
     """
@@ -13,13 +13,15 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
       config NAME
           <type_keyword> ["Prompt"]
+          [range MIN MAX [if COND]]
           [default ...]
           [depends on ...]
+          [select ...]
+          [help
+            ...]
     or:
       menuconfig NAME
-          <type_keyword> ["Prompt"]
-          [default ...]
-          [depends on ...]
+          ...
     """
 
     def __init__(
@@ -40,7 +42,8 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
         if prompt:
             prompt_node.append(KString(prompt))
-        
+
+        self._range_list=WordAlignedStack[WordlistNode]()
         self._default_list=WordAlignedStack[WordlistNode]()
         self._dependency_list=WordAlignedStack[WordlistNode]()
         self._select_list=WordAlignedStack[WordlistNode]()
@@ -48,6 +51,7 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
         super().__init__(
             begin_node,
             prompt_node,
+            self._range_list,
             self._default_list,
             self._dependency_list,
             self._select_list
@@ -59,10 +63,24 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
     # ---------- DSL helpers ----------
 
+    def add_range(
+        self,
+        min_val: Union[KVar, KInt, KHex],
+        max_val: Union[KVar, KInt, KHex],
+        when: Optional[KExpr] = None,
+    ) -> "KOption[ConstT]":
+        """Add a 'range MIN MAX [if COND]' line (for int/hex options)."""
+        wl = WordlistNode("range", min_val, max_val)
+        if when is not None and not KBool.isTrue(when):
+            wl.append("if")
+            wl.append(when)
+        self._range_list.append(wl)
+        return self
+
     def add_default(
         self,
         value: Union[KVar, ConstT],
-        when: KExpr = KBool.true(),
+        when: Optional[KExpr] = None,
     ) -> "KOption[ConstT]":
         """
         Add a 'default' line.
@@ -74,7 +92,7 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
         wl=WordlistNode("default",value)
         self._default_list.append(wl)
 
-        if when and not KBool.isTrue(when):
+        if when is not None and not KBool.isTrue(when):
             wl.append("if")
             wl.append(when)
 
@@ -85,11 +103,17 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
             if not KBool.isTrue(cond):
                 self._dependency_list.append(WordlistNode("depends on",cond))
         return self
-    
-    def add_selects(self, *vars: KExpr) -> "KOption[ConstT]":
+
+    def add_selects(self, *vars: KVar) -> "KOption[ConstT]":
         for var in vars:
-            if not KBool.isTrue(var):
-                self._select_list.append(WordlistNode("select",var))
+            self._select_list.append(WordlistNode("select", var))
+        return self
+
+    def add_help(self, *lines: str) -> "KOption[ConstT]":
+        """Add a help block. Each string is one line of help text."""
+        if lines:
+            help_block = NodeBlock(TextNode("help"), *[TextNode(line) for line in lines], level=1)
+            self.append(help_block)
         return self
 
 

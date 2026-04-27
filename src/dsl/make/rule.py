@@ -39,7 +39,7 @@ class MRule(GenericArgsMixin,WordsNode, ABC):
         left = str(targets).strip()
         if not left:
             raise ValueError("Rule requires a non-empty targets expression")
-        
+
     @property
     def op(self) -> str:
         return self._op
@@ -75,11 +75,12 @@ class MRule(GenericArgsMixin,WordsNode, ABC):
                 yield oo
 
 
-MStaticRule=MRule[":"]
-MIndependantRule=MRule["::"]
-MGroupedRule=MRule["&:"]
+MStaticRule = MRule[":"]
+MIndependentRule = MRule["::"]
+MGroupedRule = MRule["&:"]
 
-class MReceipe(NodeBlock[MElement, MRule]):
+
+class MRecipe(NodeBlock[MElement, MRule]):
     """
     Full rule with header and recipe block:
 
@@ -88,10 +89,10 @@ class MReceipe(NodeBlock[MElement, MRule]):
 
     Example usage:
 
-      header = MSimpleRule(MConst("all"), prereqs=MConst("app"))
-      rule = MReceipe(header,
-                      TextNode("\t$(MAKE) app"),
-                      TextNode("\techo done"))
+      header = MStaticRule(MString("all"), prereqs=MString("app"))
+      rule = MRecipe(header,
+                     MCommand("$(MAKE)", "app"),
+                     MCommand("echo", "done"))
     """
 
     def __init__(

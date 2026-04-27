@@ -6,6 +6,7 @@ from .core import (
     MCommand,
     MText,
     MLine,
+    MFlag,
 )
 
 from .var import (
@@ -28,9 +29,9 @@ from .var import (
 from .rule import (
     MRule,
     MStaticRule,
-    MIndependantRule,
+    MIndependentRule,
     MGroupedRule,
-    MReceipe,
+    MRecipe,
     MPhony
 )
 
@@ -75,16 +76,16 @@ from .block import (
     MConditionList
 )
 
-def any(*exprs:MExpr)->MExpr:
-    result=MBool.false()
+def any_of(*exprs: MExpr) -> MExpr:
+    result = MBool.false()
     for var in exprs:
-        result|=var
+        result |= var
     return result
 
-def all(*exprs:MExpr)->MExpr:
-    result=MBool.true()
+def all_of(*exprs: MExpr) -> MExpr:
+    result = MBool.true()
     for var in exprs:
-        result&=var
+        result &= var
     return result
 
 __all__ = [
@@ -96,9 +97,9 @@ __all__ = [
     "MCommand",
     "MText",
     "MLine",
+    "MFlag",
 
     # var
-    "MLanguage",
     "MExpr",
     "MNull",
     "MVar",
@@ -143,27 +144,24 @@ __all__ = [
     "MENDIF_KEYWORD",
     "MELSE_KEYWORD",
 
-    #block
-    "MDefine",
-    "MCondition",
+    # block
+    "MConditionList",
     "MIf",
     "MIfDef",
     "MIfNDef",
     "MIfEq",
     "MIfNEq",
     "MElse",
-    "MConditionList",
-    
 
-    #rule
+    # rule
     "MRule",
     "MStaticRule",
-    "MIndependantRule",
+    "MIndependentRule",
     "MGroupedRule",
-    "MReceipe",
+    "MRecipe",
     "MPhony",
 
-    #functions
-    "all",
-    "any"
+    # functions
+    "all_of",
+    "any_of",
 ]

@@ -9,10 +9,11 @@ from .core import (
 from .var import (
     KVar,
     KExpr,
-    KExpr,
     KNot,
     KAnd,
     KOr,
+    KNull,
+    kNULL,
     KBool,
     KInt,
     KString,
@@ -36,16 +37,16 @@ from .block import (
     KChoice,
 )
 
-def any(*exprs:KExpr)->KExpr:
-    result=KBool.false()
+def any_of(*exprs: KExpr) -> KExpr:
+    result = KBool.false()
     for var in exprs:
-        result|=var
+        result |= var
     return result
 
-def all(*exprs:KExpr)->KExpr:
-    result=KBool.true()
+def all_of(*exprs: KExpr) -> KExpr:
+    result = KBool.true()
     for var in exprs:
-        result&=var
+        result &= var
     return result
 
 __all__ = [
@@ -57,11 +58,10 @@ __all__ = [
     "KComment",
 
     # var
-    "KLanguage",
     "KExpr",
     "KVar",
-    "KConst",
-    "KExpr",
+    "KNull",
+    "kNULL",
     "KNot",
     "KAnd",
     "KOr",
@@ -87,7 +87,7 @@ __all__ = [
     "KMenu",
     "KChoice",
 
-    #functions
-    "all",
-    "any"
+    # functions
+    "all_of",
+    "any_of",
 ]

@@ -1,6 +1,6 @@
 env
 tests
-**/__pycache__
+__pycache__
 build
 tests
 *.config

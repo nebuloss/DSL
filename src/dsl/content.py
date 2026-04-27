@@ -145,7 +145,6 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
 
     def __iter__(self) -> Iterator[str]:
         children: List[TChild] = list(super().__iter__())
-#        print(f"children={children}")
         if not children:
             return
 

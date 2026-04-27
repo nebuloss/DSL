@@ -9,7 +9,7 @@ from dsl import (
     VarOr,
 )
 
-from dsl.var import LanguageOps, LanguageTypes
+from dsl.var import LanguageOps, LanguageTypes, VarBool, VarHex, VarInt, VarNull, VarString
 
 kconfig=Language("kconfig")
 
@@ -58,10 +58,16 @@ class KOr(VarOr[kconfig]):
     def __str__(self) -> str:
         return f"{self.left} || {self.right}"
 
+
 from typing import Any, Union
 
-from dsl.kconfig.var import kconfig
-from dsl.var import VarBool, VarInt, VarString
+
+class KNull(VarNull[kconfig]):
+    def __str__(self) -> str:
+        return ""
+
+kNULL = KNull()
+
 
 class KBool(VarBool[kconfig]):
 
@@ -104,8 +110,7 @@ class KInt(VarInt[kconfig]):
     def __str__(self) -> str:
         return str(int(self._val))
 
-class KHex(KInt):
-    TYPE="hex"
+class KHex(VarHex[kconfig]):
 
     def __init__(self, val: Union[int, str, bool]):
         if isinstance(val, str):
@@ -114,13 +119,13 @@ class KHex(KInt):
                 v = int(s, 16)
             except ValueError:
                 raise TypeError("Hex constant string must be a valid hex literal")
+            super().__init__(v)
         else:
-            v=val
-        super().__init__(v)
+            super().__init__(val)
 
     def __str__(self) -> str:
         return f"0x{int(self._val):X}"
-    
+
 
 class KString(VarString[kconfig]):
 
@@ -133,5 +138,3 @@ class KString(VarString[kconfig]):
 
     def __str__(self) -> str:
         return f"\"{self._escape_string(str(self._val))}\""
-
-
