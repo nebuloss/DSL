@@ -1,3 +1,22 @@
+"""
+Makefile keyword nodes (always at column 0).
+
+MKeyword uses GenericArgsMixin so the keyword string is part of the class:
+
+    MKeyword["ifdef"]  — produces a class whose instances render "ifdef …"
+
+MKeyword inherits FixedNode, so it always renders at level 0 regardless of
+how deeply nested it is inside other containers.  This is required because
+Make conditionals (ifdef/endif/else) must not be indented.
+
+MConditionKeyword adds with_else_prefix() which transforms the keyword into
+its "else" form:  ifdef → else ifdef,  ifeq → else ifeq,  else → else.
+This is used by MConditionList to merge separate condition blocks into a
+single if/else ifdef/else/endif chain without duplicating endif.
+
+Singletons MELSE_KEYWORD, MENDIF_KEYWORD, MENDEF_KEYWORD are module-level
+instances reused across all generated output.
+"""
 from typing import List, cast
 
 from dsl.container import FixedNode

@@ -1,4 +1,13 @@
-#!/usr/bin/env python3
+"""
+Kconfig top-level nodes.
+
+KConfig  — root container; children are separated by blank lines (same
+           pattern as Makefile at the Make layer).
+KList    — a plain stack with no extra spacing, for grouping.
+KSource  — "source path" line.
+KComment — "comment text" line (a Kconfig menu-visible comment entry,
+           not a # comment).
+"""
 from __future__ import annotations
 
 from typing import Optional

@@ -1,3 +1,26 @@
+"""
+Make expression types — the right-hand-side algebra for Makefile values.
+
+All classes are bound to the singleton  make = Language("make")  which is
+defined here.  Subclassing VarBool[make], VarAnd[make], etc. registers each
+class into  make.types  /  make.ops  via the __init_subclass__ hooks in var.py.
+
+Key types
+─────────
+MVar(name)       →  $(name)          — reference to a Make variable
+MArg(n)          →  $(n)             — positional argument in a $(call …)
+MSpecialVar(c)   →  $c               — single-char special: $@, $<, $^
+MString(s)       →  s                — literal string (no quoting)
+MBool(True)      →  1  /  ""         — Make's truthy/falsy convention
+MNull()          →  ""               — identity element for MAdd
+
+MAdd             →  "a b"            — space-concatenated Make expression
+MAnd             →  $(and a,b,c)     — Make $(and …) function
+MOr              →  $(or  a,b,c)     — Make $(or  …) function
+MNot             →  $(if val,,1)     — Make idiom for logical NOT
+
+Make has no Sub/Mul/Div; those ops stay None in make.ops.
+"""
 from __future__ import annotations
 
 from typing import Any, List

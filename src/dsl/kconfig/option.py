@@ -1,3 +1,21 @@
+"""
+Kconfig option nodes: config, menuconfig, choice header.
+
+KOption is a NodeBlock whose children are built up via a fluent builder API
+(add_default, add_depends, add_selects, add_range, add_help).  The mutable
+lists (_range_list, _default_list, …) are passed to NodeBlock at construction
+time, so appending to them after the fact is reflected in the rendered output
+— ListNode stores references, not copies.
+
+add_help() is the exception: it appends a fresh NodeBlock directly to self
+(the option's own _items) rather than to a pre-allocated sub-list.  This
+keeps help always last and avoids reserving an empty slot when no help is
+needed.
+
+The concrete type (bool/string/int/hex) is encoded as a generic argument:
+  KOption[KBool]   →  const_type.TYPE == "bool"
+  KOptionBool      — shorthand subclass
+"""
 # ===== Typed options: config / menuconfig =====
 
 from typing import Optional, Union

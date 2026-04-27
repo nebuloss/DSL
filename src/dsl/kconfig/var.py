@@ -1,3 +1,27 @@
+"""
+Kconfig expression types.
+
+All classes bind to  kconfig = Language("kconfig")  defined here.
+
+Kconfig boolean expressions use C-like operators in the generated output:
+  &&  ||  !   (parentheses added around sub-expressions where needed)
+
+KVar normalises names to UPPER_CASE and replaces dots/dashes with underscores,
+matching Kconfig's symbol naming convention.
+
+KNull is the identity element for boolean operators; it lets callers write
+  cond | kNULL  →  cond   (same as  cond | False  but type-safe)
+
+Type mapping
+────────────
+  KBool    →  y / n
+  KInt     →  decimal integer
+  KHex     →  0xHEX  (stored as int, displayed as hex)
+  KString  →  "quoted string"  (backslash and quote are escaped)
+
+Note: KHex extends VarHex[kconfig] — NOT KInt — so that it registers as
+kconfig.types.Hex rather than overwriting kconfig.types.Int.
+"""
 from __future__ import annotations
 
 from dsl import (

@@ -1,12 +1,39 @@
+"""
+Content nodes — leaves of the render tree.
+
+These nodes hold actual text; they sit at the bottom of the node hierarchy
+and do not contain child Nodes (unlike container.py which wraps other Nodes).
+
+LinesNode / WordsNode
+─────────────────────
+Two rendering strategies:
+  • LinesNode  — each item becomes one indented line.
+  • WordsNode  — all words are joined on a single line with a separator.
+
+WordAlignedStack
+────────────────
+Aligns a column of WordsNode children so that corresponding words line up.
+
+Algorithm (two passes):
+  Pass 1 — for each child, split words into "cells" and "suffix":
+             cells  = words[0 .. n-2],  each padded with sep to form a cell
+             suffix = words[n-1]         (the last word, never padded)
+           Track the maximum cell width per column across all children.
+  Pass 2 — pad every cell to the column maximum, then concatenate.
+
+Example (MAssignmentList):
+    ["CC",  "=",  "gcc"]     →  cells=["CC "," = "], suffix="gcc"
+    ["LONGER", ":=", "val"]  →  cells=["LONGER "," := "], suffix="val"
+    After alignment:
+    "CC      =  gcc"
+    "LONGER  := val"
+"""
 from typing import Iterator, List
 
 from dsl.node import IterableNode, Line, ListNode, SupportsStr
 
 class LinesNode(IterableNode[SupportsStr]):
-    """
-    Base class for content nodes that render in terms of lines.
-    Subclasses implement lines() and return raw strings without indentation.
-    """
+    """Each item returned by __iter__ becomes one indented line."""
 
     def render(self, level: int = 0) -> Iterator[Line]:
         lvl = max(0, int(level))
@@ -14,12 +41,7 @@ class LinesNode(IterableNode[SupportsStr]):
             yield Line(lvl, str(value))
 
 class WordsNode(IterableNode[SupportsStr]):
-    """
-    Base class for nodes expressed as words.
-
-    Subclasses implement words(), which returns an iterator of words.
-    By default, all words are joined into a single line using sep.
-    """
+    """All words from __iter__ are joined into a single line using sep."""
 
     def __init__(self, sep: str = " ") -> None:
         super().__init__()
@@ -30,8 +52,7 @@ class WordsNode(IterableNode[SupportsStr]):
         return self._sep
 
     def render(self, level: int = 0) -> Iterator[Line]:
-        # Default behavior: one line built from all words.
-        yield Line(level,self.sep.join(str(word) for word in self))
+        yield Line(level, self._sep.join(str(word) for word in self))
 
 class BlankLineNode(LinesNode):
     """Vertical space: N empty lines."""
@@ -42,55 +63,38 @@ class BlankLineNode(LinesNode):
 
     @property
     def count(self) -> int:
-        """Number of blank lines."""
         return self._count
 
-    def __iter__(self)->Iterator[str]:
-        for i in range(self.count):
+    def __iter__(self) -> Iterator[str]:
+        for _ in range(self._count):
             yield ""
 
-class TextNode(ListNode[SupportsStr],LinesNode):
-    """
-    Default relative text node.
-    Indentation level comes from render(level).
+class TextNode(ListNode[SupportsStr], LinesNode):
+    """A list of strings, each rendered as one indented line."""
+    pass
+
+class WordlistNode(ListNode[SupportsStr], WordsNode):
+    """A list of words joined into a single line.
+
+    WordlistNode("foo", "bar")  →  "foo bar"
     """
     pass
 
-class WordlistNode(ListNode[SupportsStr],WordsNode):
-    """
-    Basic concrete WordsNode backed by a list of words.
 
-      WordListNode("foo", "bar") -> "foo bar"
-    """
-    pass
+# ── Column-aligned word containers ───────────────────────────────────────────
 
-class WordAlignedContainer[TChild:WordsNode](LinesNode):
-    """
-    Align WordsNode children on word boundaries.
+class WordAlignedContainer[TChild: WordsNode](LinesNode):
+    """Aligns WordsNode children on word-column boundaries (see module doc)."""
 
-    - Each child provides its words via child.words()
-    - Each child has a separator via child.sep (single character)
-    - For alignment we treat each aligned word as a "cell" of `word + sep`,
-      except the suffix part, which is left untouched.
-
-    All word columns across all rows participate in alignment:
-    for each row, all words except the last one form the aligned cells,
-    and the last word (if present) is part of the suffix.
-    """
-
-    # ---- helpers ----
+    # ── Pass-1 helpers ────────────────────────────────────────────────────
 
     @staticmethod
     def _cell_lengths(cells: List[str]) -> List[int]:
-        """Return a list of lengths for the given cell strings."""
         return [len(c) for c in cells]
 
     @staticmethod
     def _compare_lengths(max_lengths: List[int], current: List[int]) -> None:
-        """
-        Update max_lengths in place so it becomes the element-wise max
-        between itself and current. Extends max_lengths if needed.
-        """
+        """Extend and update max_lengths to the element-wise maximum."""
         for i, length in enumerate(current):
             if i == len(max_lengths):
                 max_lengths.append(length)
@@ -99,92 +103,59 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
 
     @staticmethod
     def _pad_cell(cell: str, length: int, sep: str) -> str:
-        """
-        Return cell padded or truncated to exactly `length` characters.
-
-        Padding is done by repeating `sep` and truncating:
-          (cell + sep * length)[:length]
-        """
+        """Right-pad *cell* to exactly *length* chars using *sep* as fill."""
         if len(cell) >= length:
             return cell[:length]
-        base = cell + (sep * length)
-        return base[:length]
+        return (cell + sep * length)[:length]
 
     @classmethod
-    def _pad_cells(
-        cls,
-        cells: List[str],
-        lengths: List[int],
-        sep: str,
-    ) -> List[str]:
-        """
-        Apply predefined column lengths to a list of cells.
-
-        Let:
-          align_cols = min(len(lengths), len(cells))
-
-        Only columns 0..align_cols-1 are padded. Extra cells (if any)
-        are left untouched.
-        """
+    def _pad_cells(cls, cells: List[str], lengths: List[int], sep: str) -> List[str]:
+        """Apply per-column widths; extra cells beyond lengths are left alone."""
         if not cells:
             return []
-
         align_cols = min(len(lengths), len(cells))
-        if align_cols <= 0:
-            return list(cells)
-
         result: List[str] = []
         for i, c in enumerate(cells):
-            if i < align_cols:
-                result.append(cls._pad_cell(c, lengths[i], sep))
-            else:
-                result.append(c)
+            result.append(cls._pad_cell(c, lengths[i], sep) if i < align_cols else c)
         return result
 
-    # ---- LinesNode API ----
+    # ── LinesNode API ────────────────────────────────────────────────────────
 
     def __iter__(self) -> Iterator[str]:
         children: List[TChild] = list(super().__iter__())
         if not children:
             return
 
-        # Extract words and separators from children
-        rows: List[List[str]] = [list(str(word) for word in c) for c in children]
-        seps: List[str] = [c.sep for c in children]
+        rows: List[List[str]] = [list(str(w) for w in c) for c in children]
+        seps: List[str]       = [c.sep for c in children]
 
         if not any(rows):
             return
 
-        max_cols = max(len(words) for words in rows)
+        max_cols = max(len(r) for r in rows)
         if max_cols <= 1:
-            # 0 or 1 word per line: nothing to align, delegate
+            # Nothing to align when every row has at most one word.
             for child in children:
                 yield str(child)
             return
 
-        # Pass 1: build cells/suffixes and compute max lengths
-        max_lengths: List[int] = []
-        all_cells: List[List[str]] = []
-        all_suffixes: List[str] = []
+        # Pass 1 — build cells/suffixes and compute per-column max widths.
+        max_lengths: List[int]         = []
+        all_cells:   List[List[str]]   = []
+        all_suffixes: List[str]        = []
 
         for words, sep in zip(rows, seps):
             n = len(words)
-            aligned_cells = max(0, n - 1)
-
-            # cells: word + sep for aligned part
-            cells = [w + sep for w in words[:aligned_cells]]
-
-            # suffix: everything from aligned_cells onward (usually last word)
-            suffix_words = words[aligned_cells:]
-            suffix = sep.join(suffix_words) if suffix_words else ""
-
+            aligned_cols = max(0, n - 1)
+            # Each aligned cell = word + sep  (the separator is part of the
+            # cell so padding naturally leaves a gap before the next column).
+            cells  = [w + sep for w in words[:aligned_cols]]
+            suffix = sep.join(words[aligned_cols:]) if words[aligned_cols:] else ""
             all_cells.append(cells)
             all_suffixes.append(suffix)
+            self._compare_lengths(max_lengths, self._cell_lengths(cells))
 
-            current_lengths = self._cell_lengths(cells)
-            self._compare_lengths(max_lengths, current_lengths)
-
-        # Pass 2: pad cells and produce final lines
+        # Pass 2 — pad to column widths and emit final lines.
         for cells, suffix, sep in zip(all_cells, all_suffixes, seps):
             if not cells:
                 yield suffix
@@ -192,5 +163,7 @@ class WordAlignedContainer[TChild:WordsNode](LinesNode):
                 padded = self._pad_cells(cells, max_lengths, sep)
                 yield "".join(padded) + suffix
 
-class WordAlignedStack[TChild:WordsNode](WordAlignedContainer[TChild],ListNode[TChild]):
+
+class WordAlignedStack[TChild: WordsNode](WordAlignedContainer[TChild], ListNode[TChild]):
+    """Concrete aligned stack backed by a list (the common case)."""
     pass

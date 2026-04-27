@@ -1,3 +1,18 @@
+"""
+Kconfig block constructs: if, menu, choice.
+
+KBlock uses GenericArgsMixin to bake the keyword into the class:
+  KSimpleBlock["if"]   →  renders  "if COND … endif"
+  KSimpleBlock["menu"] →  renders  "menu "Title" … endmenu"
+
+The end keyword is derived automatically from the generic argument:
+  get_arg(0) == "if"   →  end = TextNode("endif")
+  get_arg(0) == "menu" →  end = TextNode("endmenu")
+
+KChoice is special: its header (choice + prompt + bool type) is built from
+KChoiceHeader (itself a KOption[KBool] without a name) rather than a simple
+keyword, so it inherits the full option builder.
+"""
 # ===== Block constructs: if / menu =====
 
 from dsl.container import DelimitedNodeBlock

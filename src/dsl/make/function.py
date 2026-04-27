@@ -1,3 +1,17 @@
+"""
+Make built-in function expressions.
+
+MFunc is a VarExpr that renders as  $(name arg1,arg2,…).  It participates
+in the expression algebra (can be composed with MAdd/MAnd/etc.) without
+needing its own language registration.
+
+Concrete subclasses cover the most commonly generated Make functions:
+  MIfFunc      $(if cond,then[,else])
+  MEvalFunc    $(eval text)
+  MShellFunc   $(shell cmd)
+  MCallFunc    $(call name[,arg1,…])
+  MForeachFunc $(foreach var,list,text)
+"""
 from typing import Any, List, Optional
 from dsl.make.var import MBool, MExpr, MString, MVar, make
 from dsl.var import VarExpr

@@ -1,38 +1,57 @@
+"""
+GenericArgsMixin — compile-time type argument binding.
+
+Problem: we want to write  MAssignment["="]  and get back a real class
+whose instances "know" their operator is "=", without passing it at
+construction time.  Standard Python generics (typing.Generic) keep type
+arguments only as metadata; they are erased at runtime and do not affect
+isinstance() or __init_subclass__ hooks.
+
+Solution: __class_getitem__ creates an actual subclass instead of a plain
+GenericAlias.  The subclass stores the arguments in _type_args and is
+cached so the same specialisation is always the same object.
+
+Why a real subclass?
+  - isinstance(x, MSet) works correctly.
+  - __init_subclass__ fires on further subclasses, allowing auto-registration
+    of operators and types into Language (see var.py).
+  - get_arg() is just a class attribute lookup, no runtime overhead.
+
+Usage pattern:
+    class MyBase(GenericArgsMixin):
+        def __init__(self):
+            op = self.get_arg(0)   # retrieves the first type argument
+
+    Specialised = MyBase["="]      # real subclass with _type_args = ("=",)
+    instance    = Specialised()    # get_arg(0) returns "="
+"""
 from __future__ import annotations
 
 from typing import Any
 
 
 class GenericArgsMixin:
-    """Mixin that binds type arguments to the specialized class.
-
-    Example:
-        class MyContainer(GenericArgsMixin):
-            pass
-
-        C = MyContainer[int, str]
-        assert C.get_arg(0) is int
-        assert C.get_arg(1) is str
-    """
 
     _type_args: tuple[Any, ...] = ()
+    # Per-class cache so different base classes don't share specialisations.
     _specializations: dict[tuple[Any, ...], type] = {}
 
     @classmethod
     def __class_getitem__(cls, params: Any) -> type:
-        # Normalize to a tuple of args
         if not isinstance(params, tuple):
             params = (params,)
 
-        # Per base class, keep its own cache
+        # Each subclass gets its own cache dict (not inherited from the base).
         if "_specializations" not in cls.__dict__:
             cls._specializations = {}
 
-        # Return cached specialization if it already exists
         if params in cls._specializations:
             return cls._specializations[params]
 
-        # Create a new subclass that remembers its type arguments
+        # Build a new class whose name encodes the arguments for readability
+        # in tracebacks and repr().  _type_args is in __dict__ so the
+        # __init_subclass__ guard  `"_type_args" in cls.__dict__`  can
+        # distinguish this intermediate class from a user-defined subclass.
         name = f"{cls.__name__}[{', '.join(_type_repr(p) for p in params)}]"
         subclass = type(name, (cls,), {"_type_args": params})
 
@@ -41,16 +60,9 @@ class GenericArgsMixin:
 
     @classmethod
     def get_arg(cls, index: int = 0) -> Any:
-        """Return the generic argument at the given index.
-
-        Example:
-            C = MyContainer[int, str]
-            C.get_arg(0) is int
-            C.get_arg(1) is str
-        """
+        """Return the type argument at position *index*."""
         if not cls._type_args:
             raise TypeError(f"{cls.__name__} is not parametrized with type arguments")
-
         try:
             return cls._type_args[index]
         except IndexError:
@@ -60,5 +72,4 @@ class GenericArgsMixin:
 
 
 def _type_repr(t: Any) -> str:
-    """Human readable name used in the generated class name."""
     return getattr(t, "__name__", repr(t))

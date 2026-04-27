@@ -1,3 +1,42 @@
+"""
+Expression algebra — language-independent variable/expression tree.
+
+Overview
+────────
+This module defines a typed expression tree whose concrete node classes are
+bound to a Language instance.  A Language is a simple registry that maps
+abstract roles (Bool, Int, Name, Null, Not, And, Or, …) to the concrete
+classes a given target language provides.
+
+Language binding (the __init_subclass__ + GenericArgsMixin contract)
+─────────────────────────────────────────────────────────────────────
+To define a Make-flavoured boolean:
+
+    make = Language("make")
+
+    class MBool(VarBool[make]):       # 1. VarBool[make] creates an
+        def __str__(self): …          #    intermediate subclass via
+                                      #    GenericArgsMixin.__class_getitem__
+                                      # 2. Subclassing that fires
+                                      #    VarBool.__init_subclass__ on MBool
+                                      # 3. Hook registers make.types.Bool = MBool
+
+The guard  `if "_type_args" in cls.__dict__: return`  inside each hook
+skips the intermediate specialisation class (VarBool[make]) — which has
+_type_args in its own __dict__ — and only registers the user-defined
+concrete class (MBool), which inherits _type_args but doesn't own it.
+
+Operator dispatch
+─────────────────
+Python operators (|, &, ~, +, …) call _dispatch_binop which:
+  1. Checks both operands belong to the same Language.
+  2. Short-circuits if either operand is VarNull (identity element).
+  3. Delegates to the appropriate op class, calling simplify() on the result.
+
+simplify() is called eagerly on every operator result, so the tree is
+always in a reduced form.  Each operator class implements its own algebraic
+simplification rules (idempotent, absorption, De Morgan, constant folding…).
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

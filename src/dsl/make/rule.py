@@ -1,5 +1,20 @@
-from abc import ABC, abstractmethod
-from typing import Iterator, Optional, Literal
+"""
+Make rules.
+
+MRule uses GenericArgsMixin so the rule operator (: :: &:) is baked into
+the class rather than passed at construction time:
+
+    MStaticRule    = MRule[":"]
+    MIndependentRule = MRule["::"]
+    MGroupedRule   = MRule["&:"]
+
+MRecipe wraps an MRule header in a NodeBlock so the recipe commands are
+rendered one tab-level deeper than the rule header.
+
+MPhony is a convenience for the common  .PHONY: target1 target2  pattern.
+"""
+from abc import ABC
+from typing import Iterator, Optional
 
 from dsl.container import NodeBlock
 from dsl.content import WordsNode

@@ -1,8 +1,41 @@
-from typing import Generic, Iterator, TypeVar, cast
-from dsl.container import DelimitedNodeBlock, NodeBlock, NodeStack, SimpleNodeStack
+"""
+Makefile block constructs: define, conditionals, and condition chains.
+
+MDefine
+───────
+    define VAR
+    body…
+    endef
+
+MCondition / MIf / MIfDef / …
+──────────────────────────────
+Each condition is a standalone DelimitedNodeBlock: begin keyword + body +
+endif.  When used alone they render fine.  When combined in MConditionList
+the individual endifs are suppressed and only one shared endif is emitted.
+
+MConditionList — the key transformation
+────────────────────────────────────────
+MConditionList takes N MCondition objects and merges them into one chain:
+
+    if COND_A          ← first.begin
+      body_A
+    else ifdef COND_B  ← second.begin transformed by with_else_prefix()
+      body_B
+    else               ← third.begin (an MElse) transformed → "else"
+      body_C
+    endif              ← first.end  (only one endif for the whole chain)
+
+iter_without_margin() implements this by:
+  1. Yielding first.begin as-is.
+  2. Yielding first.inner() (indented body).
+  3. For each subsequent condition: yielding cond.begin.with_else_prefix()
+     then cond.inner() — the condition's own endif is never yielded.
+  4. Yielding first.end (the single shared endif).
+"""
+from typing import Iterator, cast
+from dsl.container import DelimitedNodeBlock, NodeStack, SimpleNodeStack
 from dsl.make.core import MElement, Makefile
 from dsl.make.keyword import MELSE_KEYWORD, MENDEF_KEYWORD, MENDIF_KEYWORD, MConditionKeyword, MDefineKeyword, MIfDefKeyword, MIfEqKeyword, MIfKeyword, MIfNDefKeyword, MIfNEqKeyword, MKeyword
-from dsl.make.rule import MRule
 from dsl.make.var import MExpr, MVar
 from dsl.node import Node
 

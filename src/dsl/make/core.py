@@ -1,6 +1,23 @@
+"""
+Makefile core nodes.
+
+Makefile    — top-level NodeStack with blank-line margins between sections.
+MList       — a plain stack with no margins (for grouping without spacing).
+MComment    — "# text" line.
+MFlag       — bitmask for Make recipe prefixes: @ (silent), - (ignore errors),
+              + (always execute).
+MLine       — base for any line that carries an MFlag prefix.  Subclasses
+              implement __iter__ / render to produce their text; MLine.render()
+              injects the prefix on the first yielded line and appends " \\"
+              to all but the last line (Make line-continuation syntax).
+MText       — MLine backed by a TextNode (raw text, possibly multiline).
+MCommand    — MLine backed by a WordsNode (structured shell command).
+              Arguments are shell-quoted automatically unless they are MExpr
+              instances (which are inserted verbatim as Make expressions).
+"""
 from enum import IntFlag
 import re
-from typing import Iterator, List, Optional, Union
+from typing import Iterator, List, Optional
 
 from dsl import TextNode, WordsNode, Node, Line
 from dsl.container import NodeStack, SimpleNodeStack
