@@ -16,6 +16,8 @@
   expressions can be used in sets/dicts.
 - Documentation: accurate quick-starts, a "Concise construction" section, a
   command-quoting note, and a "Testing" section.
+- GitHub Actions CI: pytest on Python 3.12/3.13, a pyflakes lint job, and an
+  examples smoke test (`.github/workflows/ci.yml`).
 
 ### Fixed
 - **Make conditional/define blocks no longer emit stray blank lines** between
