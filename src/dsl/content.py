@@ -103,9 +103,14 @@ class WordAlignedContainer[TChild: WordsNode](LinesNode):
 
     @staticmethod
     def _pad_cell(cell: str, length: int, sep: str) -> str:
-        """Right-pad *cell* to exactly *length* chars using *sep* as fill."""
+        """Right-pad *cell* to at least *length* chars using *sep* as fill.
+
+        Never truncates: a cell wider than the column width is returned
+        unchanged (column widths are the per-column maxima, so this only
+        guards against unexpected callers).
+        """
         if len(cell) >= length:
-            return cell[:length]
+            return cell
         return (cell + sep * length)[:length]
 
     @classmethod

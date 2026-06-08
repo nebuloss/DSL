@@ -44,19 +44,20 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
     def __init__(
         self,
-        name: Optional[KVar],
+        name: Optional[KVar | str],
         prompt: Optional[str] = None,
         keyword:str="config",
     ):
-        self._name = name
+        self._name = KVar.coerce(name) if name is not None else None
         # Resolve ConstT from generics (like VarExpr does for OpsT)
         const_type:KConst=self.get_arg(0)
+        self._const_type = const_type
 
         begin_node = WordlistNode(keyword)
         prompt_node=WordlistNode(const_type.TYPE)
 
-        if name:
-            begin_node.append(name)
+        if self._name:
+            begin_node.append(self._name)
 
         if prompt:
             prompt_node.append(KString(prompt))
@@ -83,48 +84,57 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 
     def add_range(
         self,
-        min_val: Union[KVar, KInt, KHex],
-        max_val: Union[KVar, KInt, KHex],
-        when: Optional[KExpr] = None,
+        min_val: Union[KVar, KInt, KHex, int, str],
+        max_val: Union[KVar, KInt, KHex, int, str],
+        when: Optional[KExpr | str] = None,
     ) -> "KOption[ConstT]":
         """Add a 'range MIN MAX [if COND]' line (for int/hex options)."""
-        wl = WordlistNode("range", min_val, max_val)
+        wl = WordlistNode("range", self._const_type.coerce(min_val), self._const_type.coerce(max_val))
+        when = self._coerce_cond(when)
         if when is not None and not KBool.isTrue(when):
             wl.append("if")
             wl.append(when)
         self._range_list.append(wl)
         return self
 
+    @staticmethod
+    def _coerce_cond(when: Optional[KExpr | str]) -> Optional[KExpr]:
+        """A bare str condition is a symbol reference -> KVar (normalised)."""
+        return KVar.coerce(when) if isinstance(when, str) else when
+
     def add_default(
         self,
-        value: Union[KVar, ConstT],
-        when: Optional[KExpr] = None,
+        value: Union[KVar, ConstT, str, int, bool],
+        when: Optional[KExpr | str] = None,
     ) -> "KOption[ConstT]":
         """
         Add a 'default' line.
 
         value:
-          - KVar   -> used directly as symbol name
-          - ConstT -> must match this option's constant type
+          - KVar    -> used directly as symbol name
+          - ConstT  -> must match this option's constant type
+          - raw str/int/bool -> wrapped as this option's constant type
         """
-        wl=WordlistNode("default",value)
+        wl=WordlistNode("default", self._const_type.coerce(value))
         self._default_list.append(wl)
 
+        when = self._coerce_cond(when)
         if when is not None and not KBool.isTrue(when):
             wl.append("if")
             wl.append(when)
 
         return self
 
-    def add_depends(self, *conds: KExpr) -> "KOption[ConstT]":
+    def add_depends(self, *conds: KExpr | str) -> "KOption[ConstT]":
         for cond in conds:
+            cond = KVar.coerce(cond) if isinstance(cond, str) else cond
             if not KBool.isTrue(cond):
                 self._dependency_list.append(WordlistNode("depends on",cond))
         return self
 
-    def add_selects(self, *vars: KVar) -> "KOption[ConstT]":
+    def add_selects(self, *vars: KVar | str) -> "KOption[ConstT]":
         for var in vars:
-            self._select_list.append(WordlistNode("select", var))
+            self._select_list.append(WordlistNode("select", KVar.coerce(var)))
         return self
 
     def add_help(self, *lines: str) -> "KOption[ConstT]":
@@ -140,29 +150,29 @@ class KOption[ConstT:KConst](GenericArgsMixin,NodeBlock[KElement,TextNode]):
 class KOptionBool(KOption[KBool]):
     def __init__(
         self,
-        name: KVar,
+        name: KVar | str,
         prompt: Optional[str] = None,
     ):
         super().__init__(name, prompt)
 
 
 class KOptionString(KOption[KString]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KVar | str, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 
 
 class KOptionInt(KOption[KInt]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KVar | str, prompt: Optional[str] = None):
         super().__init__(name,prompt)
 
 
 class KOptionHex(KOption[KHex]):
-    def __init__(self, name: KVar, prompt: Optional[str] = None):
+    def __init__(self, name: KVar | str, prompt: Optional[str] = None):
         super().__init__(name, prompt)
 
 
 class KMenuConfig(KOption[KBool]):
-    def __init__(self, name: KVar, prompt: str):
+    def __init__(self, name: KVar | str, prompt: str):
         super().__init__(name,prompt, keyword="menuconfig")
 
 class KChoiceHeader(KOption[KBool]):

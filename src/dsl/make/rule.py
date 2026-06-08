@@ -24,6 +24,11 @@ from dsl.make.core import MElement
 from dsl.make.var import MExpr, MString
 
 
+def _coerce_opt(value: "MExpr | str | None") -> "Optional[MExpr]":
+    """Coerce an optional rule field (targets/prereqs/order-only) str→MString."""
+    return None if value is None else MString.coerce(value)
+
+
 class MRule(GenericArgsMixin,WordsNode, ABC):
     """
     Header-only Make rule:
@@ -40,18 +45,18 @@ class MRule(GenericArgsMixin,WordsNode, ABC):
 
     def __init__(
         self,
-        targets: MExpr,
-        prereqs: Optional[MExpr] = None,
-        order_only: Optional[MExpr] = None,
+        targets: MExpr | str,
+        prereqs: Optional[MExpr | str] = None,
+        order_only: Optional[MExpr | str] = None,
     ) -> None:
         super().__init__(sep=" ")
 
         self._op=self.get_arg(0)
-        self._targets: MExpr = targets
-        self._prereqs: Optional[MExpr] = prereqs
-        self._order_only: Optional[MExpr] = order_only
+        self._targets: MExpr = MString.coerce(targets)
+        self._prereqs: Optional[MExpr] = _coerce_opt(prereqs)
+        self._order_only: Optional[MExpr] = _coerce_opt(order_only)
 
-        left = str(targets).strip()
+        left = str(self._targets).strip()
         if not left:
             raise ValueError("Rule requires a non-empty targets expression")
 

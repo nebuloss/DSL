@@ -20,7 +20,7 @@ from dsl.content import TextNode, WordlistNode
 from dsl.generic_args import GenericArgsMixin
 from dsl.kconfig.core import KConfig, KElement
 from dsl.kconfig.option import KChoiceHeader, KOptionBool
-from dsl.kconfig.var import KExpr,KString
+from dsl.kconfig.var import KExpr,KString,KVar
 
 class KBlock(GenericArgsMixin,DelimitedNodeBlock[KElement,KElement,TextNode]):
     """
@@ -51,8 +51,8 @@ class KIf(KSimpleBlock["if"]):
         ...
     endif
     """
-    def __init__(self, condition: KExpr, *items: KElement):
-        super().__init__(condition, *items)
+    def __init__(self, condition: KExpr | str, *items: KElement):
+        super().__init__(KVar.coerce(condition) if isinstance(condition, str) else condition, *items)
 
 
 class KMenu(KSimpleBlock["menu"]):

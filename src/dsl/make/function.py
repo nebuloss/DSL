@@ -31,8 +31,8 @@ class MFunc(VarExpr[make]):
     def name(self) -> str:
         return self._name
 
-    @property
     def args(self) -> tuple[MExpr, ...]:
+        # A method (not a property) to honour VarExpr's structural args() API.
         return tuple(self._args)
 
     def key(self) -> tuple[Any, ...]:
@@ -86,8 +86,9 @@ class MIfFunc(MFunc):
         super().__init__("if", *args)
 
     def __str__(self) -> str:
-        cond, then = self.args[0], self.args[1]
-        otherwise = self.args[2] if len(self.args) > 2 else None
+        args = self.args()
+        cond, then = args[0], args[1]
+        otherwise = args[2] if len(args) > 2 else None
         if otherwise is None:
             return f"$(if {cond},{then})"
         return f"$(if {cond},{then},{otherwise})"

@@ -250,7 +250,15 @@ class VarExpr(GenericArgsMixin, ABC):
         raise NotImplementedError
 
     def key(self) -> Tuple[Any, ...]:
-        return (self.TYPE, *self.args())  # type: ignore[attr-defined]
+        # Expressions are immutable once built, so the structural key (used by
+        # __eq__, __hash__ and every simplify() pass) is computed once and
+        # cached. This turns repeated key() lookups on a tree from O(n) into
+        # O(1) after the first call.
+        k = getattr(self, "_key_cache", None)
+        if k is None:
+            k = (self.TYPE, *self.args())  # type: ignore[attr-defined]
+            self._key_cache = k
+        return k
 
     @abstractmethod
     def simplify(self) -> "VarExpr":
@@ -265,6 +273,11 @@ class VarExpr(GenericArgsMixin, ABC):
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, VarExpr) and self.key() == other.key()
+
+    def __hash__(self) -> int:
+        # Expressions hash by their structural key, consistent with __eq__.
+        # Lets expressions be used in sets/dicts (e.g. to dedupe terms).
+        return hash(self.key())
 
 
 # =====================================================================
@@ -365,6 +378,19 @@ class VarConst(VarConcrete):
 
     def args(self) -> Tuple[Any, ...]:
         return (self._val,)
+
+    @classmethod
+    def coerce(cls, value: Any) -> "VarExpr":
+        """Coerce a raw Python literal into this constant type.
+
+        A value slot accepts *any* expression, so an existing VarExpr is
+        returned unchanged; only raw Python literals are wrapped as ``cls``.
+        Lets callers write ``MSet("X", "y")`` instead of
+        ``MSet(MVar("X"), MString("y"))`` while still accepting MVar/MAdd/… .
+        """
+        if isinstance(value, VarExpr):
+            return value
+        return cls(value)
 
 
 class VarBool(VarConst):
@@ -495,6 +521,24 @@ class VarName(VarConcrete):
 
     def add_suffix(self, suffix: str) -> Self:
         return type(self)(f"{self.name}_{suffix}")
+
+    @classmethod
+    def coerce(cls, value: Any) -> Self:
+        """Coerce a raw name string into this name type.
+
+        Returns the value unchanged if it is already an instance of ``cls``
+        (so ``MVar``/``KVar`` and their subclasses pass through); a ``str`` is
+        wrapped as ``cls(value)``. Lets callers write ``MSet("CC", …)`` or
+        ``KOptionBool("MY_OPT", …)`` instead of wrapping the name by hand.
+        """
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            return cls(value)
+        raise TypeError(
+            f"{cls.__name__} expects a str or {cls.__name__}, "
+            f"got {type(value).__name__}"
+        )
 
 
 class VarNull(VarConcrete):

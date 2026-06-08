@@ -33,7 +33,7 @@ from dsl import (
     VarOr,
 )
 
-from dsl.var import LanguageOps, LanguageTypes, VarBool, VarHex, VarInt, VarNull, VarString
+from dsl.var import VarBool, VarHex, VarInt, VarNull, VarString
 
 kconfig=Language("kconfig")
 
@@ -44,9 +44,15 @@ KExpr = VarExpr
 
 class KVar(VarName[kconfig]):
     def __init__(self, name:str):
-        if name[0].isdigit():
+        if not isinstance(name, str):
+            raise TypeError("Variable name must be a string")
+        s = name.strip()
+        if not s:
+            raise ValueError("Empty variable name")
+        normalized = s.upper().replace(".", "_").replace("-", "_")
+        if normalized[0].isdigit():
             raise ValueError("Variable name cannot start with a digit")
-        super().__init__(name.upper().replace(".","_").replace("-", "_"))
+        super().__init__(normalized)
 
     def __str__(self) -> str:
         return self.name

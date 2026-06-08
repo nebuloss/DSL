@@ -67,6 +67,7 @@ from .keyword import (
 )
 
 from .block import (
+    MDefine,
     MIf,
     MIfDef,
     MIfNDef,
@@ -146,6 +147,7 @@ __all__ = [
 
     # block
     "MConditionList",
+    "MDefine",
     "MIf",
     "MIfDef",
     "MIfNDef",

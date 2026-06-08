@@ -34,18 +34,31 @@ iter_without_margin() implements this by:
 """
 from typing import Iterator, cast
 from dsl.container import DelimitedNodeBlock, NodeStack, SimpleNodeStack
-from dsl.make.core import MElement, Makefile
+from dsl.make.core import MElement
 from dsl.make.keyword import MELSE_KEYWORD, MENDEF_KEYWORD, MENDIF_KEYWORD, MConditionKeyword, MDefineKeyword, MIfDefKeyword, MIfEqKeyword, MIfKeyword, MIfNDefKeyword, MIfNEqKeyword, MKeyword
-from dsl.make.var import MExpr, MVar
-from dsl.node import Node
+from dsl.make.var import MExpr, MString, MVar
+from dsl.node import Node, nullNode
+
+
+def _as_name(value: "MExpr | str") -> MExpr:
+    """ifdef/ifndef/if expect a variable name; coerce a bare str to MVar."""
+    return MVar.coerce(value) if isinstance(value, str) else value
+
+
+__all__ = [
+    "MDelimitedBlock", "MDefine", "MCondition",
+    "MIf", "MIfDef", "MIfNDef", "MIfEq", "MIfNEq", "MElse", "MConditionList",
+]
 
 class MDelimitedBlock[TBlockHeader:MKeyword](DelimitedNodeBlock[MElement,TBlockHeader,MKeyword]):
     def __init__(self, begin:TBlockHeader, end:MKeyword, *children:MElement,indent:bool=True):
+        # Blocks render tight (no blank lines between header, body, footer);
+        # spacing between blocks is handled by the enclosing Makefile margin.
         super().__init__(
-            begin, 
-            end, 
-            *children, 
-            margin=Makefile.MARGIN,
+            begin,
+            end,
+            *children,
+            margin=nullNode,
             level=int(indent)
         )
 
@@ -63,38 +76,38 @@ class MCondition(MDelimitedBlock[MConditionKeyword]):
         super().__init__(begin, MENDIF_KEYWORD, *children,indent=False)
 
 class MIf(MCondition):
-    def __init__(self, var: MVar, *body: MElement):
+    def __init__(self, var: MVar | str, *body: MElement):
         super().__init__(
-            MIfKeyword(var),
+            MIfKeyword(_as_name(var)),
             *body
         )
 
 class MIfDef(MCondition):
-    def __init__(self, var: MVar, *body: MElement):
+    def __init__(self, var: MVar | str, *body: MElement):
         super().__init__(
-            MIfDefKeyword(var),
+            MIfDefKeyword(_as_name(var)),
             *body
         )
 
 class MIfNDef(MCondition):
-    def __init__(self, var: MVar, *body: MElement):
+    def __init__(self, var: MVar | str, *body: MElement):
         super().__init__(
-            MIfNDefKeyword(var),
+            MIfNDefKeyword(_as_name(var)),
             *body
         )
 
 class MIfEq(MCondition):
-    def __init__(self, a:MExpr, b:MExpr, *body: MElement):
+    def __init__(self, a:MExpr | str, b:MExpr | str, *body: MElement):
         super().__init__(
-        MIfEqKeyword(a,b),
+        MIfEqKeyword(MString.coerce(a), MString.coerce(b)),
         *body
     )
 
 
 class MIfNEq(MCondition):
-    def __init__(self, a:MExpr, b:MExpr, *body: MElement):
+    def __init__(self, a:MExpr | str, b:MExpr | str, *body: MElement):
         super().__init__(
-        MIfNEqKeyword(a,b),
+        MIfNEqKeyword(MString.coerce(a), MString.coerce(b)),
         *body
     )
 
@@ -106,7 +119,8 @@ class MElse(MCondition):
 
 class MConditionList(NodeStack[MCondition]):
     def __init__(self, *children):
-        super().__init__(*children, margin=Makefile.MARGIN)
+        # Tight chain: if / else if / else / endif with no blank lines between.
+        super().__init__(*children, margin=nullNode)
 
     def iter_without_margin(self)->Iterator[Node]:
         it=cast(Iterator[MCondition],SimpleNodeStack.__iter__(self))

@@ -60,7 +60,8 @@ class MDefineKeyword(MKeyword["define"]):
     """
 
     def __init__(self, var: MVar) -> None:
-        super().__init__(str(var))
+        # make's `define` directive takes the bare variable name, not $(NAME)
+        super().__init__(self.format_args(var))
 
     @staticmethod
     def format_args(*args: MExpr) -> str:

@@ -20,7 +20,7 @@ from typing import Iterator
 
 from dsl.content import WordAlignedStack, WordsNode
 from dsl.generic_args import GenericArgsMixin
-from dsl.make.var import MExpr, MVar
+from dsl.make.var import MExpr, MString, MVar
 
 
 class MAssignment(GenericArgsMixin,WordsNode):
@@ -34,10 +34,10 @@ class MAssignment(GenericArgsMixin,WordsNode):
       +=   append
     """
 
-    def __init__(self, var: MVar, value: MExpr, sep: str = " ") -> None:
+    def __init__(self, var: MVar | str, value: MExpr | str, sep: str = " ") -> None:
         super().__init__(sep=sep)   # important: init WordsNode / Node
-        self._var = var
-        self._value = value
+        self._var = MVar.coerce(var)
+        self._value = MString.coerce(value)
         self._op= self.get_arg(0)
 
     @property

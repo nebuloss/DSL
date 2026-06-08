@@ -120,23 +120,28 @@ Requires Python ≥ 3.12 (uses PEP 695 generic syntax).
 
 ## Quick start — Makefile
 
+Plain `str`/`int` are coerced to the right node type (see
+[Concise construction](#concise-construction-type-coercion)), so most wrappers
+are optional:
+
 ```python
 from dsl import make as mk
 
 mf = mk.Makefile(
     mk.MAssignmentList(
-        mk.MSet(mk.MVar("CC"),     mk.MString("gcc")),
-        mk.MSetDefault(mk.MVar("CFLAGS"), mk.MString("-O2 -Wall")),
+        mk.MSet("CC", "gcc"),
+        mk.MSetDefault("CFLAGS", "-O2 -Wall"),
     ),
-    mk.MPhony(mk.MString("all clean")),
+    mk.MPhony("all clean"),
     mk.MRecipe(
-        mk.MStaticRule(mk.MString("all"), prereqs=mk.MString("main.o")),
-        mk.MCommand("$(CC)", "$(CFLAGS)", "-o", "app", "main.o",
+        mk.MStaticRule("all", prereqs="main.o"),
+        # MVar is verbatim; plain strings are shell-quoted (see MCommand below)
+        mk.MCommand("gcc", mk.MVar("CFLAGS"), "-o", "app", "main.o",
                     flags=mk.MFlag.SILENT),
     ),
     mk.MRecipe(
-        mk.MStaticRule(mk.MString("clean")),
-        mk.MCommand("rm", "-f", "app", "*.o", flags=mk.MFlag.SILENT),
+        mk.MStaticRule("clean"),
+        mk.MCommand("rm", "-f", "app", "main.o", flags=mk.MFlag.SILENT),
     ),
 )
 
@@ -154,7 +159,7 @@ all: main.o
 	@gcc $(CFLAGS) -o app main.o
 
 clean:
-	@rm -f app *.o
+	@rm -f app main.o
 ```
 
 ---
@@ -166,14 +171,14 @@ from dsl import kconfig as kc
 
 cfg = kc.KConfig(
     kc.KMenu("Driver options",
-        kc.KOptionBool(kc.KVar("MY_DRIVER"), "Enable my driver")
-            .add_depends(kc.KVar("HAS_HW"))
-            .add_selects(kc.KVar("DRIVER_CORE"))
-            .add_default(kc.KBool.true(), when=kc.KVar("BOARD_DEFAULT"))
+        kc.KOptionBool("MY_DRIVER", "Enable my driver")
+            .add_depends("HAS_HW")
+            .add_selects("DRIVER_CORE")
+            .add_default(kc.KBool.true(), when="BOARD_DEFAULT")
             .add_help("Enable the driver subsystem."),
-        kc.KOptionInt(kc.KVar("TIMEOUT_MS"), "Timeout in milliseconds")
-            .add_range(kc.KInt(10), kc.KInt(5000))
-            .add_default(kc.KInt(100)),
+        kc.KOptionInt("TIMEOUT_MS", "Timeout in milliseconds")
+            .add_range(10, 5000)
+            .add_default(100),
     )
 )
 
@@ -187,7 +192,6 @@ menu "Driver options"
 	config MY_DRIVER
 		bool "Enable my driver"
 		default y if BOARD_DEFAULT
-		default n
 		depends on HAS_HW
 		select DRIVER_CORE
 		help
@@ -200,6 +204,34 @@ menu "Driver options"
 
 endmenu
 ```
+
+---
+
+## Concise construction (type coercion)
+
+Constructors accept plain Python values and coerce them to the right node type,
+so you rarely need to wrap things by hand. Coercion is **backward-compatible**:
+passing an already-built node (`MVar`, `KString`, an expression, …) passes
+through unchanged.
+
+| Position | Accepts | Coerced to |
+|---|---|---|
+| `MSet`/`MSetDefault`/… variable | `str` | `MVar` |
+| `MSet`/… value, `MStaticRule` targets/prereqs, `MIfEq` operands | `str` | `MString` (any expression passes through) |
+| `MIf`/`MIfDef`/`MIfNDef` variable | `str` | `MVar` |
+| `KOption*` name, `KIf` condition, `add_depends`/`add_selects`/`when` | `str` | `KVar` (normalised) |
+| `add_default`/`add_range` value | `str`/`int`/`bool` | the option's constant type (`KBool`/`KInt`/`KHex`/`KString`) |
+
+```python
+mk.MSet("CC", "gcc")                 # ≡ MSet(MVar("CC"), MString("gcc"))
+mk.MStaticRule("all", prereqs="x")   # ≡ MStaticRule(MString("all"), prereqs=MString("x"))
+kc.KOptionInt("N").add_range(0, 99)  # ≡ KOptionInt(KVar("N")).add_range(KInt(0), KInt(99))
+```
+
+The mechanism is a small OO protocol: every leaf type exposes a `coerce`
+classmethod (`VarName.coerce` for names, `VarConst.coerce` for literals), and
+constructors delegate to it — so coercion is centralised, not scattered
+`isinstance` checks.
 
 ---
 
@@ -281,6 +313,24 @@ mk.MRecipe(
 | `MFlag.SILENT` | `@` | suppress echoing |
 | `MFlag.IGNORE_ERRORS` | `-` | continue on non-zero exit |
 | `MFlag.ALWAYS` | `+` | run even with `--dry-run` |
+
+### Command argument quoting
+
+`MCommand` shell-quotes plain `str` arguments that contain unsafe characters, so
+values with spaces are passed as a single shell word:
+
+```python
+mk.MCommand("echo", "hello world")   # echo 'hello world'
+```
+
+To insert a token **verbatim** (a make variable, a glob, a redirection, …),
+pass an `MExpr` instead of a plain string — `MVar`/`MString`/`MSpecialVar` are
+all rendered as-is:
+
+```python
+mk.MCommand("gcc", mk.MVar("CFLAGS"), "-o", "app")  # gcc $(CFLAGS) -o app
+mk.MCommand("rm", "-f", mk.MString("*.o"))           # rm -f *.o   (glob preserved)
+```
 
 ### Conditionals
 
@@ -441,3 +491,21 @@ bash run_all.sh -v       # full output
 | `01_core_algebra.py` | Custom language, all expression types, simplification rules |
 | `02_make.py` | All Make nodes: variables, assignments, rules, conditionals, functions |
 | `03_kconfig.py` | All Kconfig nodes: options, menus, choices, conditions |
+
+---
+
+## Testing
+
+The test suite lives in `tests/` and runs with `pytest`:
+
+```bash
+pip install -e ".[test]"
+pytest
+```
+
+Coverage: the expression algebra and its simplification rules, the
+node/render layer (indentation, margins, column alignment), the language
+binding machinery, type coercion, and the Make and Kconfig sublanguages
+(rendering, escaping, conditionals, options). `tests/conftest.py` defines a
+fully-featured test `Language` so the arithmetic operators (which Make and
+Kconfig do not register) can be exercised in isolation.
